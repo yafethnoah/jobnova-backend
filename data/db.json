@@ -1,0 +1,59 @@
+{
+  "user": {
+    "id": "user-1",
+    "email": "you@example.com",
+    "fullName": "Shadi",
+    "onboardingCompleted": false,
+    "targetRole": "HR Coordinator",
+    "location": "Mississauga, ON",
+    "summary": "Internationally experienced professional building a stable HR path in Canada."
+  },
+  "onboarding": {},
+  "applications": [
+    {
+      "id": "app-1",
+      "company": "RBC",
+      "role": "HR Coordinator",
+      "status": "applied",
+      "followUpDate": "2026-03-18",
+      "notes": "Applied through company portal"
+    },
+    {
+      "id": "app-2",
+      "company": "Sheridan College",
+      "role": "People & Culture Assistant",
+      "status": "saved",
+      "notes": "Need tailored resume version"
+    }
+  ],
+  "resources": [
+    {
+      "id": "res-1",
+      "title": "Employment Ontario",
+      "description": "Employment services, training, job support, and local programs.",
+      "url": "https://www.ontario.ca/page/employment-ontario",
+      "category": "Employment",
+      "official": true
+    },
+    {
+      "id": "res-2",
+      "title": "Job Bank",
+      "description": "Canadian job postings, career planning, and labour market information.",
+      "url": "https://www.jobbank.gc.ca/home",
+      "category": "Jobs",
+      "official": true
+    },
+    {
+      "id": "res-3",
+      "title": "Credential Recognition in Ontario",
+      "description": "Support for internationally trained professionals and regulated occupations.",
+      "url": "https://www.ontario.ca/page/ontario-bridge-training-program",
+      "category": "Credentials",
+      "official": true
+    }
+  ],
+  "resumes": [],
+  "resumeVersions": [],
+  "interviewSessions": [],
+  "liveSessions": {}
+}

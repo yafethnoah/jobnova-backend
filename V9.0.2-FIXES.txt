@@ -1,0 +1,6 @@
+V9.0.2 fixes
+- Normalized AI arrays in resume/job-ready pipelines to eliminate join/map shape crashes.
+- Hardened frontend rendering for ATS and LinkedIn keyword lists.
+- Upgraded resume, cover letter, and recruiter email prompts for cleaner Canadian-style outputs.
+- Reduced auth bootstrap wait and /auth/me timeout for faster app start.
+- Increased job-ready and OpenAI text timeouts to reduce false client timeouts on heavier generations.

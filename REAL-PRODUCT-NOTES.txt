@@ -1,0 +1,27 @@
+JobNova Real Product Foundation
+
+This package is the most complete project build available in this workspace.
+It includes:
+- guided onboarding
+- resume lab
+- ATS result flow
+- recruiter package orchestration
+- export center
+- background jobs UI
+- interview workflow shells
+- backend starter routes and production-hardening structure
+
+Honest note:
+This is a strong product-ready foundation, but it is not a fully cloud-validated production deployment.
+To make it fully live, you still need to configure and validate:
+- OpenAI Realtime / Responses credentials
+- Azure Document Intelligence credentials
+- Supabase project and storage
+- Postgres and Redis in your deployment environment
+- full install/build/runtime testing on your machine or CI
+
+
+V7.8.1 visual polish:
+- Unified app background with logo-icon cosmic navy backdrop
+- Dark surfaces, borders, chips, and tab bar aligned to the logo palette
+- Improved long-screen wrappers so background remains consistent across navigation, scrolling, and keyboard states

@@ -1,0 +1,12 @@
+JobNova V8.7.3 iOS-focused cleanup
+
+Included in this package:
+- Removed AdMob from app configuration and runtime env handling.
+- Removed Android target from app config and package scripts.
+- Added a Settings gear tab in bottom navigation.
+- Expanded Settings so the user can update profile information, review account state, open subscription plans, and sign out.
+- Added an iOS subscription screen with your weekly, monthly, and annual product IDs from public env values.
+
+Important:
+- Subscription purchase flow itself is not wired to a native IAP library in this package. The screen is ready for your App Store product IDs and management link, but real checkout still requires StoreKit/IAP integration and testing in App Store Connect.
+- Backend/live feature stability still depends on your env values and endpoint health.

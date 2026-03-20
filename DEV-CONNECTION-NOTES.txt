@@ -1,0 +1,13 @@
+JobNova V8.7.4 dev connection notes
+
+1) If Expo on iPhone says it cannot connect to exp://127.0.0.1:8081, that is not an app screen bug.
+   It means the phone cannot reach your Metro bundler. Start Expo with tunnel mode or use the same Wi-Fi network.
+
+2) On a physical phone, do not use localhost for EXPO_PUBLIC_API_BASE_URL.
+   Use your computer LAN IP like http://192.168.1.55:4000 or a deployed backend URL.
+
+3) For development, backend/.env should normally keep:
+   ALLOW_LOCAL_FALLBACK=true
+   DISABLE_LOCAL_AUTH=false
+
+4) Sign in first if you want ATS results, profile data, and uploads to stay attached to your account.

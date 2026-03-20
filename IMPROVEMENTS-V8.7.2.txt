@@ -1,0 +1,23 @@
+JobNova V8.7.2 hardening upgrade
+
+Backend improvements completed in this package:
+- Added backend .gitignore to keep secrets and local artifacts out of Git.
+- Added Postgres-backed persistence layer for users, sessions, and per-user state when DATABASE_URL is configured.
+- Preserved local JSON fallback only for development/testing when live database is not configured.
+- Added startup persistence initialization for Postgres tables.
+- Upgraded auth middleware to accept both local bearer sessions and verified Supabase bearer tokens.
+- Added Supabase user mirroring/provisioning into the app profile layer.
+- Improved ATS scoring with semantic-style overlap scoring and section completeness checks.
+- Upgraded realtime interview route to request OpenAI realtime ephemeral sessions when OPENAI_API_KEY is configured, with safe mock fallback.
+- Updated environment examples for V8.7.2 and stricter production posture.
+
+Important implementation notes:
+- To use real persistence, set DATABASE_URL and run the backend with Postgres enabled.
+- To use real Supabase auth in production, set SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, DISABLE_LOCAL_AUTH=true, and ALLOW_LOCAL_FALLBACK=false.
+- Realtime voice still depends on your OpenAI credentials and client-side mobile compatibility.
+- expo-av is still present on the frontend live interview screen and should be migrated in a later pass.
+
+Recommended next pass after this version:
+- Replace expo-av with the newer Expo audio stack.
+- Add explicit SQL migrations for the new jobnova_users / jobnova_sessions / jobnova_user_state tables.
+- Add automated backend tests for auth, persistence, exports, and live interview routes.

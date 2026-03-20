@@ -1,0 +1,8 @@
+JobNova V8.7.4 fixes
+
+- tightened iOS tab bar layout so labels no longer spill across the bottom navigation
+- added optional-auth retry on ATS, resume upload, job extraction, and live interview routes
+- kept recruiter voice interview flow wired as the preferred interview experience
+- made signup/login handling more tolerant when backend auth modes differ
+- corrected backend env examples so local auth is enabled by default for development
+- added clearer frontend env note: use LAN IP or real backend URL, not localhost, on a physical iPhone

@@ -1,10 +1,10 @@
 {
   "name": "jobnova-v18-saas",
-  "version": "18.0.0",
+  "version": "1.0.0",
   "private": true,
-  "main": "expo-router/entry",
+  "main": "server.js",
   "scripts": {
-    "start": "expo start",
+    "start": "node server.js",
     "start:clear": "expo start -c",
     "ios": "expo run:ios",
     "web": "expo start --web",
@@ -35,7 +35,7 @@
     "expo-speech": "~13.1.7",
     "expo-splash-screen": "~0.30.10",
     "expo-status-bar": "~3.0.9",
-    "express": "^5.2.1",
+    "express": "^4.22.1",
     "express-rate-limit": "^8.3.1",
     "helmet": "^8.1.0",
     "react": "19.1.0",

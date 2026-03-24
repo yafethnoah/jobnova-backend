@@ -1,0 +1,15 @@
+JobNova V8.7 restored-core handoff
+
+What changed:
+- Rebased critical interview flow on the V8.2 live recruiter experience
+- Removed Google Mobile Ads dependency and kept native ads as no-op stubs
+- Applied JobNova branding for icon/splash assets
+- Switched resume, interview, job-ready package, and career path backend routes to optional auth guest mode
+- Upgraded resume upload API with MIME inference and latest-upload support
+- Restored file extraction hydration into ATS, career path, and job-ready package
+- Added ATS download tailored resume action
+- Upgraded backend file parser and job-post parser from the stronger later build
+
+Important:
+- Real extraction, transcription, and recruiter voice still require a real backend URL and OPENAI_API_KEY.
+- This handoff was patched from source files in the uploaded projects; it was not fully device-verified in this environment.

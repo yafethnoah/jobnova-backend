@@ -1,0 +1,7 @@
+V8.8.1 fixes:
+- Hardened job-ready package generation against non-array AI output.
+- Forwarded resume/cover/email export format selections correctly to backend exports.
+- Strengthened cover letter and recruiter email generation fallbacks.
+- Hid subscription product identifiers from app UI.
+- Removed external subscription management link from the subscription screen and kept actions inside the app interface.
+- Added subscription price support in frontend env parsing.

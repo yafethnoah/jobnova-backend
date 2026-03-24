@@ -1,0 +1,25 @@
+# JobNova V4 Ready Package
+
+This package is the most complete runnable project bundle prepared in this workspace.
+
+What is included:
+- Expo SDK 54 configuration
+- Resume Match Lab mock flow
+- Dynamic ATS comparison in mock mode
+- Full tailored resume scaffold in mock mode
+- 5-question interview training flow
+- Local persistence and mock/live environment switching
+
+What still requires your real backend/services:
+- real PDF/DOCX parsing
+- real ATS scoring against uploaded document contents
+- DOCX/PDF export service
+- live voice interview training
+- database/auth/storage integration
+
+Quick start:
+1. Copy .env.example to .env
+2. Set EXPO_PUBLIC_USE_MOCK_API=true for local testing
+3. Run npm install
+4. Run npx expo install --fix
+5. Run npx expo start -c

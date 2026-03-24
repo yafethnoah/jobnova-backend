@@ -186,8 +186,8 @@ app.get('/health', async (_req, res) => {
   });
 });
 
-app.use('/auth', authRoutes);
-app.use('/users', userRoutes);
+app.use('/auth', authRoutes);        // optional (keep for compatibility)
+app.use('/api/auth', authRoutes);    // ✅ REQUIRED FIXapp.use('/users', userRoutes);
 app.use('/career-path', careerPathRoutes);
 app.use('/applications', applicationsRoutes);
 app.use('/resources', resourcesRoutes);

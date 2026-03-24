@@ -91,7 +91,27 @@ app.use(
 );
 
 app.use(
+  '/api/auth',
+  rateLimit({
+    windowMs: Number(env.API_RATE_LIMIT_WINDOW_MS || 900000),
+    max: Number(env.AUTH_RATE_LIMIT_MAX || 30),
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
+
+app.use(
   '/resume/upload',
+  rateLimit({
+    windowMs: Number(env.API_RATE_LIMIT_WINDOW_MS || 900000),
+    max: Number(env.UPLOAD_RATE_LIMIT_MAX || 20),
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
+
+app.use(
+  '/api/resume/upload',
   rateLimit({
     windowMs: Number(env.API_RATE_LIMIT_WINDOW_MS || 900000),
     max: Number(env.UPLOAD_RATE_LIMIT_MAX || 20),
@@ -118,6 +138,10 @@ if (sentry) {
 }
 
 app.use('/downloads', express.static(path.join(__dirname, 'data', 'generated')));
+app.use(
+  '/api/downloads',
+  express.static(path.join(__dirname, 'data', 'generated'))
+);
 
 app.get('/', (_req, res) => {
   res.json({
@@ -150,6 +174,16 @@ app.get('/', (_req, res) => {
   });
 });
 
+app.get('/api', (_req, res) => {
+  res.json({
+    ok: true,
+    service: 'jobnova-backend',
+    version: env.APP_VERSION,
+    health: '/api/health',
+    apiBase: '/api',
+  });
+});
+
 app.get('/test', (_req, res) => {
   res.json({
     ok: true,
@@ -158,6 +192,51 @@ app.get('/test', (_req, res) => {
 });
 
 app.get('/health', async (_req, res) => {
+  const db = await healthcheck();
+  const redis = await redisHealthcheck();
+  const supabase = await supabaseHealthcheck();
+  const openaiOk = Boolean(process.env.OPENAI_API_KEY);
+  const emailOk = Boolean(process.env.RESEND_API_KEY || process.env.SMTP_HOST);
+  const exportsOk = true;
+
+  const persistenceMode =
+    db?.mode || (allowLocalFallback ? 'local-fallback' : 'database-required');
+
+  let status = 'healthy';
+  if (!db.ok && allowLocalFallback) status = 'fallback';
+  else if (!db.ok && !allowLocalFallback) status = 'down';
+  else if ((redis.enabled && !redis.ok) || (supabase.enabled && !supabase.ok)) {
+    status = 'degraded';
+  }
+
+  const ok = status !== 'down';
+
+  res.status(ok ? 200 : 503).json({
+    ok,
+    status,
+    service: 'jobnova-backend',
+    version: env.APP_VERSION,
+    timestamp: new Date().toISOString(),
+    db,
+    redis,
+    supabase,
+    openai: { ok: openaiOk, mode: openaiOk ? 'configured' : 'missing' },
+    email: { ok: emailOk, mode: emailOk ? 'configured' : 'missing' },
+    exports: { ok: exportsOk, mode: 'local-generated-files' },
+    persistenceMode,
+    warnings: getRuntimeWarnings(),
+    queueDepth: listJobs().filter(
+      (job) => job.status === 'queued' || job.status === 'processing'
+    ).length,
+    security: {
+      helmet: true,
+      rateLimit: true,
+      sentry: Boolean(sentry),
+    },
+  });
+});
+
+app.get('/api/health', async (_req, res) => {
   const db = await healthcheck();
   const redis = await redisHealthcheck();
   const supabase = await supabaseHealthcheck();

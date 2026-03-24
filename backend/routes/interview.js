@@ -1,140 +1,180 @@
 const express = require('express');
-const multer = require('multer');
-const fs = require('fs');
-const path = require('path');
-const { saveState } = require('../data/store');
-const { getQuestion, getFeedback, startLiveSession, completeLiveSession, createLiveTurnFeedback } = require('../services/interviewEngine');
-const { transcribeAudio, synthesizeSpeech } = require('../lib/openai');
-const { enqueueUserSync } = require('../lib/cloudSync');
-const { optionalAuth, resolveBearerUser, extractToken } = require('../middleware/auth');
+
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
-const uploadsDir = path.join(__dirname, '..', 'data', 'interview-audio');
-const generatedVoiceDir = path.join(__dirname, '..', 'data', 'generated', 'voice');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-if (!fs.existsSync(generatedVoiceDir)) fs.mkdirSync(generatedVoiceDir, { recursive: true });
 
-function publicVoiceUrl(fileName) {
-  return fileName ? `/downloads/voice/${fileName}` : null;
+function normalizeText(value, fallback = '') {
+  if (typeof value !== 'string') return fallback;
+  const cleaned = value.trim();
+  return cleaned.length ? cleaned : fallback;
 }
 
-function canRespond(req, res) {
-  return !req.requestTimedOut && !res.headersSent;
+function makeId(prefix = 'id') {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-async function maybeMakeVoice(text, voiceName = 'alloy') {
-  if (!process.env.OPENAI_API_KEY || !text) return { audioUrl: null, voiceName: null };
-  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2,8)}.mp3`;
-  const outPath = path.join(generatedVoiceDir, fileName);
-  try {
-    await synthesizeSpeech(text, outPath, voiceName);
-    return { audioUrl: publicVoiceUrl(fileName), voiceName };
-  } catch {
-    return { audioUrl: null, voiceName: null };
+function buildQuestionSet({ interviewType, targetRole, companyName }) {
+  const role = targetRole || 'this role';
+  const company = companyName || 'this company';
+
+  const behavioral = [
+    `Tell me about yourself and why you are a strong fit for ${role}.`,
+    `Describe a time you solved a difficult problem in a role similar to ${role}.`,
+    `Tell me about a time you had to manage competing priorities.`,
+    `Describe an achievement that had measurable impact.`,
+    `Why do you want to work for ${company}?`,
+  ];
+
+  const situational = [
+    `If you joined ${company} tomorrow as ${role}, what would you focus on first?`,
+    `How would you handle a sudden change in priorities with the same deadline?`,
+    `What would you do if a manager challenged your recommendation?`,
+    `How would you respond to a conflict between two stakeholders?`,
+    `How would you improve a process that is slowing down your team?`,
+  ];
+
+  const technical = [
+    `What tools or systems are most important for success in ${role}?`,
+    `Walk me through a real workflow or process you managed that is relevant to ${role}.`,
+    `How do you check quality and accuracy in your work?`,
+    `Describe a data-driven or systems-based problem you solved.`,
+    `How do you stay current in your professional field?`,
+  ];
+
+  if (interviewType === 'situational') return situational;
+  if (interviewType === 'technical') return technical;
+  if (interviewType === 'mixed') {
+    return [
+      behavioral[0],
+      situational[1],
+      behavioral[2],
+      technical[1],
+      situational[4],
+    ];
   }
+
+  return behavioral;
 }
 
-router.use(optionalAuth);
+function scoreSampleAnswer(answerText = '') {
+  const text = normalizeText(answerText, '');
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  const hasMetrics = /\b\d+[%]?\b/.test(text);
+  const hasAction = /\b(led|managed|improved|reduced|increased|delivered|built|created|coordinated|implemented)\b/i.test(
+    text
+  );
+  const hasStructure = /\b(first|then|because|result|situation|task|action)\b/i.test(
+    text
+  );
 
-router.use(async (req, _res, next) => {
+  let clarity = 5;
+  let structure = 5;
+  let relevance = 5;
+
+  if (wordCount > 30) clarity += 1;
+  if (wordCount > 70) clarity += 1;
+  if (hasStructure) structure += 2;
+  if (hasAction) relevance += 1;
+  if (hasMetrics) relevance += 2;
+
+  return {
+    clarity: Math.min(10, clarity),
+    structure: Math.min(10, structure),
+    relevance: Math.min(10, relevance),
+    strength: hasMetrics
+      ? 'Strong answer foundation. You used specific evidence, which makes your answer more credible.'
+      : 'Good starting point. Add measurable outcomes and clearer evidence to make the answer more persuasive.',
+    strongerSampleAnswer:
+      'A stronger answer should briefly explain the situation, the action you took, and the measurable result. Keep it focused on the role and end with the outcome.',
+  };
+}
+
+function buildMockTranscriptQuestions({ targetRole, companyName, interviewType }) {
+  const questions = buildQuestionSet({ interviewType, targetRole, companyName });
+
+  return questions.map((question, index) => ({
+    id: makeId('question'),
+    order: index + 1,
+    question,
+  }));
+}
+
+router.post('/start', async (req, res) => {
   try {
-    if (req.user) return next();
-    const token = extractToken(req.headers.authorization);
-    if (!token) return next();
-    const user = await resolveBearerUser(token);
-    if (user) req.user = user;
-    return next();
-  } catch {
-    return next();
+    const targetRole = normalizeText(req.body?.targetRole, 'Target Role');
+    const companyName = normalizeText(req.body?.companyName, '');
+    const interviewType = normalizeText(req.body?.interviewType, 'behavioral');
+    const difficulty = normalizeText(req.body?.difficulty, 'medium');
+    const coachTone = normalizeText(req.body?.coachTone, 'realistic');
+
+    const questions = buildMockTranscriptQuestions({
+      targetRole,
+      companyName,
+      interviewType,
+    });
+
+    return res.status(200).json({
+      ok: true,
+      sessionId: makeId('interview'),
+      targetRole,
+      companyName,
+      interviewType,
+      difficulty,
+      coachTone,
+      questions,
+      firstQuestion: questions[0]?.question || 'Tell me about yourself.',
+      totalQuestions: questions.length,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: error?.message || 'Could not start interview.',
+    });
   }
 });
 
-
-router.post('/question', (req, res) => {
+router.post('/score', async (req, res) => {
   try {
-    const { role, index } = req.body || {};
-    return res.json(getQuestion(role, index));
+    const answerText = normalizeText(req.body?.answerText, '');
+    const feedback = scoreSampleAnswer(answerText);
+
+    return res.status(200).json({
+      ok: true,
+      feedback,
+    });
   } catch (error) {
-    return res.status(500).json({ message: error.message || 'Could not generate interview question.' });
+    return res.status(500).json({
+      message: error?.message || 'Could not score interview answer.',
+    });
   }
 });
 
 router.post('/feedback', async (req, res) => {
   try {
-    const result = await getFeedback(req.body || {});
-    const saved = { id: `is-${Date.now()}`, role: req.body?.role || '', question: req.body?.question || '', answer: req.body?.answer || '', result, createdAt: new Date().toISOString() };
-    req.userData.interviewSessions.unshift(saved);
-    req.userData.interviewSessions = req.userData.interviewSessions.slice(0, 100);
-    saveState();
-    enqueueUserSync(req.user, req.userData, 'interview_feedback', saved, saved.id);
-    return res.json(result);
+    const answerText = normalizeText(req.body?.answerText, '');
+    const feedback = scoreSampleAnswer(answerText);
+
+    return res.status(200).json({
+      ok: true,
+      summary:
+        'Interview feedback generated successfully. Focus on clarity, structure, and measurable impact.',
+      feedback,
+    });
   } catch (error) {
-    return res.status(500).json({ message: error.message || 'Could not generate interview feedback.' });
+    return res.status(500).json({
+      message: error?.message || 'Could not generate interview feedback.',
+    });
   }
 });
 
-router.get('/history', (req, res) => res.json(req.userData.interviewSessions || []));
-
-router.post('/live/start', async (req, res) => {
-  try {
-    const session = await startLiveSession(req.body || {});
-    if (!canRespond(req, res)) return;
-    req.userData.liveSessions[session.sessionId] = { ...session, createdAt: new Date().toISOString() };
-    saveState();
-    enqueueUserSync(req.user, req.userData, 'live_interview_start', req.userData.liveSessions[session.sessionId], session.sessionId);
-    const voice = await maybeMakeVoice(session.currentQuestion, session.payload?.recruiterVoice || 'verse');
-    if (!canRespond(req, res)) return;
-    return res.json({ sessionId: session.sessionId, firstQuestion: session.currentQuestion, totalQuestions: session.totalQuestions, ...voice });
-  } catch (error) {
-    if (!canRespond(req, res)) return;
-    return res.status(500).json({ message: error.message || 'Could not start live interview.' });
-  }
-});
-
-router.post('/live/respond', upload.single('audio'), async (req, res) => {
-  try {
-    const sessionId = req.body?.sessionId;
-    if (!sessionId) return res.status(400).json({ message: 'Session ID is required.' });
-    const session = req.userData.liveSessions?.[sessionId];
-    if (!session) return res.status(404).json({ message: 'Live session not found.' });
-    if (req.body?.recruiterVoice) session.payload = { ...(session.payload || {}), recruiterVoice: String(req.body.recruiterVoice) };
-
-    let answerText = String(req.body?.answerText || '').trim();
-    if (!answerText && req.file) {
-      const audioPath = path.join(uploadsDir, `${Date.now()}-${req.file.originalname || 'voice.m4a'}`);
-      fs.writeFileSync(audioPath, req.file.buffer);
-      answerText = (await transcribeAudio(audioPath)) || '';
-    }
-    if (!answerText) return res.status(400).json({ message: 'No answer text or usable audio transcript could be processed. Try the typed fallback, or check that OPENAI_API_KEY and transcription are working on the backend.' });
-
-    const result = await createLiveTurnFeedback(session, answerText);
-    if (!canRespond(req, res)) return;
-    saveState();
-    enqueueUserSync(req.user, req.userData, 'live_interview_turn', { sessionId, result }, sessionId);
-    const voice = await maybeMakeVoice(result.coachReply + (result.nextQuestion ? ` ${result.nextQuestion}` : ''), session.payload?.recruiterVoice || 'verse');
-    if (!canRespond(req, res)) return;
-    return res.json({ ...result, ...voice });
-  } catch (error) {
-    if (!canRespond(req, res)) return;
-    return res.status(500).json({ message: error.message || 'Could not process live interview response.' });
-  }
-});
-
-router.post('/live/complete', async (req, res) => {
-  try {
-    const { sessionId, ...payload } = req.body || {};
-    const session = req.userData.liveSessions?.[sessionId];
-    const result = await completeLiveSession(sessionId || `live-${Date.now()}`, payload, session || null);
-    const saved = { id: sessionId || `live-${Date.now()}`, role: payload?.targetRole || '', type: 'live', result, createdAt: new Date().toISOString() };
-    req.userData.interviewSessions.unshift(saved);
-    req.userData.interviewSessions = req.userData.interviewSessions.slice(0, 100);
-    if (sessionId && req.userData.liveSessions?.[sessionId]) delete req.userData.liveSessions[sessionId];
-    saveState();
-    enqueueUserSync(req.user, req.userData, 'live_interview_complete', saved, saved.id);
-    return res.json(result);
-  } catch (error) {
-    return res.status(500).json({ message: error.message || 'Could not complete live interview.' });
-  }
+router.get('/types', (_req, res) => {
+  return res.status(200).json({
+    ok: true,
+    items: [
+      { label: 'Behavioral', value: 'behavioral' },
+      { label: 'Situational', value: 'situational' },
+      { label: 'Mixed', value: 'mixed' },
+      { label: 'Technical', value: 'technical' },
+    ],
+  });
 });
 
 module.exports = router;

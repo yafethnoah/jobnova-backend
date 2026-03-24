@@ -19,7 +19,10 @@ type ExtraConfig = {
   appleAnnualProductId?: string;
 };
 
-const extra = ((Constants.expoConfig?.extra ?? Constants.manifest2?.extra ?? {}) as ExtraConfig) || {};
+const extra =
+  ((Constants.expoConfig?.extra ??
+    Constants.manifest2?.extra ??
+    {}) as ExtraConfig) || {};
 
 function directEnvValue(key: string): string | undefined {
   switch (key) {
@@ -64,8 +67,14 @@ function extraEnvValue(key: string): string | undefined {
   switch (key) {
     case 'EXPO_PUBLIC_API_BASE_URL':
       return typeof extra.apiBaseUrl === 'string' ? extra.apiBaseUrl : undefined;
+
     case 'EXPO_PUBLIC_USE_MOCK_API':
-      return typeof extra.useMockApi === 'boolean' ? String(extra.useMockApi) : typeof extra.useMockApi === 'string' ? extra.useMockApi : undefined;
+      return typeof extra.useMockApi === 'boolean'
+        ? String(extra.useMockApi)
+        : typeof extra.useMockApi === 'string'
+          ? extra.useMockApi
+          : undefined;
+
     case 'EXPO_PUBLIC_APP_ENV':
       return extra.environment;
     case 'EXPO_PUBLIC_APP_NAME':
@@ -84,16 +93,28 @@ function extraEnvValue(key: string): string | undefined {
       return extra.subscriptionPriceMonthly;
     case 'EXPO_PUBLIC_SUBSCRIPTION_PRICE_ANNUAL':
       return extra.subscriptionPriceAnnual;
+
     case 'EXPO_PUBLIC_ENABLE_ADS':
-      return typeof extra.enableAds === 'boolean' ? String(extra.enableAds) : typeof extra.enableAds === 'string' ? extra.enableAds : undefined;
+      return typeof extra.enableAds === 'boolean'
+        ? String(extra.enableAds)
+        : typeof extra.enableAds === 'string'
+          ? extra.enableAds
+          : undefined;
+
     case 'EXPO_PUBLIC_ENABLE_BILLING':
-      return typeof extra.enableBilling === 'boolean' ? String(extra.enableBilling) : typeof extra.enableBilling === 'string' ? extra.enableBilling : undefined;
+      return typeof extra.enableBilling === 'boolean'
+        ? String(extra.enableBilling)
+        : typeof extra.enableBilling === 'string'
+          ? extra.enableBilling
+          : undefined;
+
     case 'EXPO_PUBLIC_APPLE_WEEKLY_PRODUCT_ID':
       return extra.appleWeeklyProductId;
     case 'EXPO_PUBLIC_APPLE_MONTHLY_PRODUCT_ID':
       return extra.appleMonthlyProductId;
     case 'EXPO_PUBLIC_APPLE_ANNUAL_PRODUCT_ID':
       return extra.appleAnnualProductId;
+
     default:
       return undefined;
   }
@@ -101,17 +122,40 @@ function extraEnvValue(key: string): string | undefined {
 
 function readEnv(key: string, fallback = ''): string {
   const direct = directEnvValue(key);
-  if (typeof direct === 'string' && direct.trim()) return direct.trim();
-  const extraValue = extraEnvValue(key);
-  if (typeof extraValue === 'string' && extraValue.trim()) return extraValue.trim();
+  if (typeof direct === 'string' && direct.trim().length > 0) {
+    return direct.trim();
+  }
+
+  const fromExtra = extraEnvValue(key);
+  if (typeof fromExtra === 'string' && fromExtra.trim().length > 0) {
+    return fromExtra.trim();
+  }
+
   return fallback;
 }
 
-const normalizeBaseUrl = (value?: string) => String(value ?? '').trim().replace(/\/+$/, '');
+function normalizeBaseUrl(value?: string): string {
+  return String(value ?? '').trim().replace(/\/+$/, '');
+}
+
 function readBoolean(key: string, fallback: boolean): boolean {
-  const value = readEnv(key, String(fallback)).toLowerCase();
-  if (['true', '1', 'yes', 'on'].includes(value)) return true;
-  if (['false', '0', 'no', 'off'].includes(value)) return false;
+  const rawDirect = directEnvValue(key);
+  const rawExtra = extraEnvValue(key);
+  const raw = rawDirect ?? rawExtra;
+
+  if (typeof raw === 'boolean') return raw;
+  if (typeof raw !== 'string') return fallback;
+
+  const value = raw.trim().toLowerCase();
+
+  if (value === 'true' || value === '1' || value === 'yes' || value === 'on') {
+    return true;
+  }
+
+  if (value === 'false' || value === '0' || value === 'no' || value === 'off') {
+    return false;
+  }
+
   return fallback;
 }
 
@@ -130,21 +174,29 @@ export const env = {
   subscriptionPriceWeekly: readEnv('EXPO_PUBLIC_SUBSCRIPTION_PRICE_WEEKLY', '$1.99/week'),
   subscriptionPriceMonthly: readEnv('EXPO_PUBLIC_SUBSCRIPTION_PRICE_MONTHLY', '$9.99/month'),
   subscriptionPriceAnnual: readEnv('EXPO_PUBLIC_SUBSCRIPTION_PRICE_ANNUAL', '$59.99/year'),
-  adsEnabled: readBoolean('EXPO_PUBLIC_ENABLE_ADS', false),
-  billingEnabled: readBoolean('EXPO_PUBLIC_ENABLE_BILLING', false),
+  adsEnabled: Boolean(readBoolean('EXPO_PUBLIC_ENABLE_ADS', false)),
+  billingEnabled: Boolean(readBoolean('EXPO_PUBLIC_ENABLE_BILLING', false)),
   appleWeeklyProductId: readEnv('EXPO_PUBLIC_APPLE_WEEKLY_PRODUCT_ID', ''),
   appleMonthlyProductId: readEnv('EXPO_PUBLIC_APPLE_MONTHLY_PRODUCT_ID', ''),
   appleAnnualProductId: readEnv('EXPO_PUBLIC_APPLE_ANNUAL_PRODUCT_ID', '')
-};
+} as const;
 
 export function assertRuntimeEnv(): void {
-  if (!useMockApi && !apiBaseUrl) throw new Error('Live API mode is enabled but EXPO_PUBLIC_API_BASE_URL is missing.');
+  if (!env.useMockApi && !env.apiBaseUrl) {
+    throw new Error('Live API mode is enabled but EXPO_PUBLIC_API_BASE_URL is missing.');
+  }
+
   if (env.billingEnabled) {
     const missing = [
       env.appleWeeklyProductId ? null : 'EXPO_PUBLIC_APPLE_WEEKLY_PRODUCT_ID',
       env.appleMonthlyProductId ? null : 'EXPO_PUBLIC_APPLE_MONTHLY_PRODUCT_ID',
       env.appleAnnualProductId ? null : 'EXPO_PUBLIC_APPLE_ANNUAL_PRODUCT_ID'
-    ].filter(Boolean);
-    if (missing.length) throw new Error(`Billing is enabled but product IDs are missing: ${missing.join(', ')}`);
+    ].filter(Boolean) as string[];
+
+    if (missing.length > 0) {
+      throw new Error(
+        `Billing is enabled but product IDs are missing: ${missing.join(', ')}`
+      );
+    }
   }
 }

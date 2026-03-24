@@ -126,6 +126,10 @@ app.get('/', (_req, res) => {
     version: env.APP_VERSION,
     health: '/health',
     endpoints: [
+      '/auth',
+      '/api/auth',
+      '/users',
+      '/api/users',
       '/resume',
       '/assets',
       '/api/job-ready',
@@ -186,20 +190,25 @@ app.get('/health', async (_req, res) => {
   });
 });
 
-app.use('/auth', authRoutes);        // optional (keep for compatibility)
-app.use('/api/auth', authRoutes);    // ✅ REQUIRED FIXapp.use('/users', userRoutes);
+// AUTH
+app.use('/auth', authRoutes);
+app.use('/api/auth', authRoutes);
+
+// USERS
+app.use('/users', userRoutes);
+app.use('/api/users', userRoutes);
+
+// OTHER CORE ROUTES
 app.use('/career-path', careerPathRoutes);
 app.use('/applications', applicationsRoutes);
 app.use('/resources', resourcesRoutes);
 app.use('/resume', resumeRoutes);
 
-// Keep old route if other parts of the app use it
+// JOB READY
 app.use('/assets', jobReadyRoutes);
-
-// Required for the frontend package endpoint:
-// POST /api/job-ready/job-ready-package
 app.use('/api/job-ready', jobReadyRoutes);
 
+// REMAINING ROUTES
 app.use('/linkedin', linkedinRoutes);
 app.use('/interview', interviewRoutes);
 app.use('/email', emailRoutes);

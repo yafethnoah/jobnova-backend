@@ -130,11 +130,22 @@ app.get('/', (_req, res) => {
       '/api/auth',
       '/users',
       '/api/users',
+      '/career-path',
+      '/api/career-path',
+      '/applications',
+      '/api/applications',
+      '/resources',
+      '/api/resources',
       '/resume',
+      '/api/resume',
       '/assets',
       '/api/job-ready',
       '/interview',
+      '/api/interview',
+      '/interview/realtime',
+      '/api/interview/realtime',
       '/jobs',
+      '/api/jobs',
     ],
   });
 });
@@ -160,8 +171,9 @@ app.get('/health', async (_req, res) => {
   let status = 'healthy';
   if (!db.ok && allowLocalFallback) status = 'fallback';
   else if (!db.ok && !allowLocalFallback) status = 'down';
-  else if ((redis.enabled && !redis.ok) || (supabase.enabled && !supabase.ok))
+  else if ((redis.enabled && !redis.ok) || (supabase.enabled && !supabase.ok)) {
     status = 'degraded';
+  }
 
   const ok = status !== 'down';
 
@@ -198,25 +210,57 @@ app.use('/api/auth', authRoutes);
 app.use('/users', userRoutes);
 app.use('/api/users', userRoutes);
 
-// OTHER CORE ROUTES
+// CAREER PATH
 app.use('/career-path', careerPathRoutes);
+app.use('/api/career-path', careerPathRoutes);
+
+// APPLICATIONS
 app.use('/applications', applicationsRoutes);
+app.use('/api/applications', applicationsRoutes);
+
+// RESOURCES
 app.use('/resources', resourcesRoutes);
+app.use('/api/resources', resourcesRoutes);
+
+// RESUME
 app.use('/resume', resumeRoutes);
+app.use('/api/resume', resumeRoutes);
 
 // JOB READY
 app.use('/assets', jobReadyRoutes);
 app.use('/api/job-ready', jobReadyRoutes);
 
-// REMAINING ROUTES
+// LINKEDIN
 app.use('/linkedin', linkedinRoutes);
+app.use('/api/linkedin', linkedinRoutes);
+
+// INTERVIEW
 app.use('/interview', interviewRoutes);
-app.use('/email', emailRoutes);
-app.use('/dashboard', dashboardRoutes);
-app.use('/ats', atsRouter);
-app.use('/exports', exportRouter);
+app.use('/api/interview', interviewRoutes);
+
+// INTERVIEW REALTIME
 app.use('/interview/realtime', interviewRealtimeRouter);
+app.use('/api/interview/realtime', interviewRealtimeRouter);
+
+// EMAIL
+app.use('/email', emailRoutes);
+app.use('/api/email', emailRoutes);
+
+// DASHBOARD
+app.use('/dashboard', dashboardRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+
+// ATS
+app.use('/ats', atsRouter);
+app.use('/api/ats', atsRouter);
+
+// EXPORTS
+app.use('/exports', exportRouter);
+app.use('/api/exports', exportRouter);
+
+// JOBS
 app.use('/jobs', jobsRouter);
+app.use('/api/jobs', jobsRouter);
 
 if (sentry && typeof sentry.setupExpressErrorHandler === 'function') {
   sentry.setupExpressErrorHandler(app);

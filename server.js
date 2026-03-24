@@ -10,17 +10,50 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
-const app = express();
+const {
+  env,
+  getRuntimeWarnings,
+  assertProductionReadiness,
+  allowLocalFallback,
+} = require('./config/env');
 
+const { healthcheck } = require('./lib/db');
+const { redisHealthcheck } = require('./lib/redis');
+const { supabaseHealthcheck } = require('./lib/supabase');
+const { listJobs } = require('./lib/jobQueue');
+const { requestContext } = require('./middleware/requestContext');
+const { trackError, trackRequest } = require('./lib/telemetry');
+const { toSafeError } = require('./lib/errors');
+const { initPersistence } = require('./data/store');
+const { initSentry, getSentry } = require('./lib/sentry');
+
+const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
+const careerPathRoutes = require('./routes/careerPath');
+const applicationsRoutes = require('./routes/applications');
+const resourcesRoutes = require('./routes/resources');
+const resumeRoutes = require('./routes/resume');
 const jobReadyRoutes = require('./routes/jobReady');
+const linkedinRoutes = require('./routes/linkedin');
+const interviewRoutes = require('./routes/interview');
+const emailRoutes = require('./routes/email');
+const dashboardRoutes = require('./routes/dashboard');
+const { atsRouter } = require('./routes/ats');
+const { exportRouter } = require('./routes/export');
+const { interviewRealtimeRouter } = require('./routes/interviewRealtime');
+const { jobsRouter } = require('./routes/jobs');
 
-const PORT = Number(process.env.PORT || 4000);
-const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+initSentry();
 
+const app = express();
+const sentry = getSentry();
+
+const corsOrigin = env.CORS_ORIGIN || '*';
 const allowedOrigins =
-  CORS_ORIGIN === '*'
+  corsOrigin === '*'
     ? true
-    : CORS_ORIGIN.split(',')
+    : corsOrigin
+        .split(',')
         .map((item) => item.trim())
         .filter(Boolean);
 
@@ -40,81 +73,232 @@ app.use(
 
 app.use(
   rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 120,
+    windowMs: Number(env.API_RATE_LIMIT_WINDOW_MS || 900000),
+    max: Number(env.API_RATE_LIMIT_MAX || 120),
     standardHeaders: true,
     legacyHeaders: false,
   })
 );
 
-app.use(express.json({ limit: '10mb' }));
+app.use(
+  '/auth',
+  rateLimit({
+    windowMs: Number(env.API_RATE_LIMIT_WINDOW_MS || 900000),
+    max: Number(env.AUTH_RATE_LIMIT_MAX || 30),
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
+
+app.use(
+  '/resume/upload',
+  rateLimit({
+    windowMs: Number(env.API_RATE_LIMIT_WINDOW_MS || 900000),
+    max: Number(env.UPLOAD_RATE_LIMIT_MAX || 20),
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
+
+app.use(express.json({ limit: '6mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(requestContext);
 
-const generatedDir = path.join(__dirname, 'data', 'generated');
+app.use((req, _res, next) => {
+  trackRequest(req);
+  next();
+});
 
-app.use('/downloads', express.static(generatedDir));
-app.use('/api/downloads', express.static(generatedDir));
+if (sentry) {
+  app.use(
+    sentry.Handlers
+      ? sentry.Handlers.requestHandler()
+      : (_req, _res, next) => next()
+  );
+}
+
+app.use('/downloads', express.static(path.join(__dirname, 'data', 'generated')));
 
 app.get('/', (_req, res) => {
   res.json({
     ok: true,
     service: 'jobnova-backend',
-    message: 'Backend is running',
+    version: env.APP_VERSION,
     health: '/health',
-    apiBase: '/api',
+    endpoints: [
+      '/auth',
+      '/api/auth',
+      '/users',
+      '/api/users',
+      '/career-path',
+      '/api/career-path',
+      '/applications',
+      '/api/applications',
+      '/resources',
+      '/api/resources',
+      '/resume',
+      '/api/resume',
+      '/assets',
+      '/api/job-ready',
+      '/interview',
+      '/api/interview',
+      '/interview/realtime',
+      '/api/interview/realtime',
+      '/jobs',
+      '/api/jobs',
+    ],
   });
 });
 
-app.get('/health', (_req, res) => {
-  res.status(200).json({
-    ok: true,
-    service: 'jobnova-backend',
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-  });
-});
-
-app.get('/api', (_req, res) => {
+app.get('/test', (_req, res) => {
   res.json({
     ok: true,
-    service: 'jobnova-backend',
-    apiBase: '/api',
-    routes: ['/api/job-ready'],
+    message: 'Backend working',
   });
 });
 
-app.get('/api/health', (_req, res) => {
-  res.status(200).json({
-    ok: true,
+app.get('/health', async (_req, res) => {
+  const db = await healthcheck();
+  const redis = await redisHealthcheck();
+  const supabase = await supabaseHealthcheck();
+  const openaiOk = Boolean(process.env.OPENAI_API_KEY);
+  const emailOk = Boolean(process.env.RESEND_API_KEY || process.env.SMTP_HOST);
+  const exportsOk = true;
+
+  const persistenceMode =
+    db?.mode || (allowLocalFallback ? 'local-fallback' : 'database-required');
+
+  let status = 'healthy';
+  if (!db.ok && allowLocalFallback) status = 'fallback';
+  else if (!db.ok && !allowLocalFallback) status = 'down';
+  else if ((redis.enabled && !redis.ok) || (supabase.enabled && !supabase.ok)) {
+    status = 'degraded';
+  }
+
+  const ok = status !== 'down';
+
+  res.status(ok ? 200 : 503).json({
+    ok,
+    status,
     service: 'jobnova-backend',
-    uptime: process.uptime(),
+    version: env.APP_VERSION,
     timestamp: new Date().toISOString(),
+    db,
+    redis,
+    supabase,
+    openai: { ok: openaiOk, mode: openaiOk ? 'configured' : 'missing' },
+    email: { ok: emailOk, mode: emailOk ? 'configured' : 'missing' },
+    exports: { ok: exportsOk, mode: 'local-generated-files' },
+    persistenceMode,
+    warnings: getRuntimeWarnings(),
+    queueDepth: listJobs().filter(
+      (job) => job.status === 'queued' || job.status === 'processing'
+    ).length,
+    security: {
+      helmet: true,
+      rateLimit: true,
+      sentry: Boolean(sentry),
+    },
   });
 });
 
-// Mount the route exactly where the frontend expects it:
-// POST /api/job-ready/job-ready-package
-app.use('/job-ready', jobReadyRoutes);
+// AUTH
+app.use('/auth', authRoutes);
+app.use('/api/auth', authRoutes);
+
+// USERS
+app.use('/users', userRoutes);
+app.use('/api/users', userRoutes);
+
+// CAREER PATH
+app.use('/career-path', careerPathRoutes);
+app.use('/api/career-path', careerPathRoutes);
+
+// APPLICATIONS
+app.use('/applications', applicationsRoutes);
+app.use('/api/applications', applicationsRoutes);
+
+// RESOURCES
+app.use('/resources', resourcesRoutes);
+app.use('/api/resources', resourcesRoutes);
+
+// RESUME
+app.use('/resume', resumeRoutes);
+app.use('/api/resume', resumeRoutes);
+
+// JOB READY
+app.use('/assets', jobReadyRoutes);
 app.use('/api/job-ready', jobReadyRoutes);
 
-// 404 fallback
-app.use((req, res) => {
-  res.status(404).json({
-    ok: false,
-    message: `Route not found: ${req.method} ${req.originalUrl}`,
+// LINKEDIN
+app.use('/linkedin', linkedinRoutes);
+app.use('/api/linkedin', linkedinRoutes);
+
+// INTERVIEW
+app.use('/interview', interviewRoutes);
+app.use('/api/interview', interviewRoutes);
+
+// INTERVIEW REALTIME
+app.use('/interview/realtime', interviewRealtimeRouter);
+app.use('/api/interview/realtime', interviewRealtimeRouter);
+
+// EMAIL
+app.use('/email', emailRoutes);
+app.use('/api/email', emailRoutes);
+
+// DASHBOARD
+app.use('/dashboard', dashboardRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+
+// ATS
+app.use('/ats', atsRouter);
+app.use('/api/ats', atsRouter);
+
+// EXPORTS
+app.use('/exports', exportRouter);
+app.use('/api/exports', exportRouter);
+
+// JOBS
+app.use('/jobs', jobsRouter);
+app.use('/api/jobs', jobsRouter);
+
+if (sentry && typeof sentry.setupExpressErrorHandler === 'function') {
+  sentry.setupExpressErrorHandler(app);
+}
+
+app.use((err, req, res, _next) => {
+  if (res.headersSent || req.requestTimedOut) return;
+
+  const safe = toSafeError(err);
+  trackError(req, safe, { details: safe.details || null });
+
+  res.status(safe.statusCode || 500).json({
+    message: safe.message || 'Unexpected server error.',
+    requestId: req.requestId,
+    details: safe.details || undefined,
   });
 });
 
-// Error handler
-app.use((error, _req, res, _next) => {
-  console.error('Server error:', error);
+const PORT = env.PORT;
 
-  res.status(500).json({
-    ok: false,
-    message: error?.message || 'Unexpected server error.',
+(async () => {
+  try {
+    assertProductionReadiness();
+    await initPersistence();
+  } catch (error) {
+    console.error('Startup blocked:', error.message);
+    process.exit(1);
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    const warnings = getRuntimeWarnings();
+    console.log(`JobNova backend running on http://0.0.0.0:${PORT}`);
+
+    if (warnings.length) {
+      console.warn('Runtime warnings:');
+      for (const warning of warnings) {
+        console.warn(`- ${warning}`);
+      }
+    }
   });
-});
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`JobNova backend running on http://0.0.0.0:${PORT}`);
-});
+})();

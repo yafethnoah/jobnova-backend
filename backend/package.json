@@ -1,8 +1,14 @@
 {
   "name": "jobnova-backend",
-  "version": "13.0.0",
+  "version": "14.0.0",
   "private": true,
   "main": "server.js",
+  "type": "commonjs",
+
+  "engines": {
+    "node": "20.18.0"
+  },
+
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
@@ -10,6 +16,7 @@
     "preflight": "node -e \"const cfg=require('./config/env'); cfg.assertProductionReadiness(); console.log('Backend env OK')\"",
     "worker": "ENABLE_QUEUE_WORKER=true node workers/queueWorker.js"
   },
+
   "dependencies": {
     "@google-cloud/vision": "^4.3.0",
     "@sentry/node": "^10.22.0",
@@ -36,8 +43,8 @@
     "uuid": "^11.0.3",
     "zod": "^3.24.2"
   },
-  "type": "commonjs",
-  "engines": {
-    "node": ">=18"
+
+  "devDependencies": {
+    "nodemon": "^3.1.4"
   }
 }

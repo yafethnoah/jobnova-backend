@@ -43,9 +43,15 @@ async function handleLogin(req, res) {
     }
 
     const accessToken = await issueSession(user.id);
-    return res.status(200).json({ ok: true, accessToken, user: publicUser(user) });
+    return res.status(200).json({
+      ok: true,
+      accessToken,
+      user: publicUser(user),
+    });
   } catch (error) {
-    return res.status(500).json({ message: error?.message || 'Could not sign in.' });
+    return res.status(500).json({
+      message: error?.message || 'Could not sign in.',
+    });
   }
 }
 
@@ -60,16 +66,24 @@ async function handleRegister(req, res) {
     }
 
     if (password.length < 6) {
-      return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+      return res.status(400).json({
+        message: 'Password must be at least 6 characters long.',
+      });
     }
 
     const user = await createUser({ email, fullName, password });
     const accessToken = await issueSession(user.id);
 
-    return res.status(201).json({ ok: true, accessToken, user: publicUser(user) });
+    return res.status(201).json({
+      ok: true,
+      accessToken,
+      user: publicUser(user),
+    });
   } catch (error) {
     const status = /already exists/i.test(String(error?.message || '')) ? 409 : 400;
-    return res.status(status).json({ message: error?.message || 'Could not create account.' });
+    return res.status(status).json({
+      message: error?.message || 'Could not create account.',
+    });
   }
 }
 
@@ -89,9 +103,14 @@ router.post('/me', requireAuth, (req, res) => {
 router.post('/logout', requireAuth, async (req, res) => {
   try {
     await revokeSession(req.auth?.token || null);
-    return res.status(200).json({ ok: true, message: 'Signed out successfully.' });
+    return res.status(200).json({
+      ok: true,
+      message: 'Signed out successfully.',
+    });
   } catch (error) {
-    return res.status(500).json({ message: error?.message || 'Could not sign out.' });
+    return res.status(500).json({
+      message: error?.message || 'Could not sign out.',
+    });
   }
 });
 

@@ -19,7 +19,7 @@ router.post('/generate', async (req, res) => {
       frenchLevel: req.body?.frenchLevel || '',
       hasCanadianExperience: req.body?.hasCanadianExperience || false,
       targetGoal: req.body?.targetGoal || '',
-      urgencyLevel: req.body?.urgencyLevel || 'medium'
+      urgencyLevel: req.body?.urgencyLevel || 'medium',
     };
 
     let result;
@@ -27,29 +27,29 @@ router.post('/generate', async (req, res) => {
     try {
       result = await generateCareerPath(payload);
     } catch (aiError) {
-      console.error("AI FAILED → using fallback:", aiError.message);
+      console.error('AI FAILED → using fallback:', aiError.message);
 
       result = {
         summary: `Start with bridge roles aligned with ${payload.profession}. Build Canadian experience and transition to your target role.`,
         steps: [
-          "Apply to entry/bridge roles",
-          "Gain Canadian experience",
-          "Upskill with certifications",
-          "Network and transition to target role"
-        ]
+          'Apply to entry/bridge roles',
+          'Gain Canadian experience',
+          'Upskill with certifications',
+          'Network and transition to target role',
+        ],
       };
     }
 
     const updatedUser = updateUser(req.user.id, {
       onboardingCompleted: true,
-      targetRole: payload.profession
+      targetRole: payload.profession,
     });
 
     req.userData.careerPath = {
       id: `cp-${Date.now()}`,
       payload,
       result,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     };
 
     await saveState();
@@ -66,15 +66,14 @@ router.post('/generate', async (req, res) => {
       ok: true,
       result,
       careerPath: req.userData.careerPath,
-      user: updatedUser
+      user: updatedUser,
     });
-
   } catch (error) {
-    console.error("FATAL ERROR:", error);
+    console.error('FATAL ERROR:', error);
     return res.status(500).json({
       ok: false,
-      message: "Career path generation failed",
-      error: error.message
+      message: 'Career path generation failed',
+      error: error.message,
     });
   }
 });

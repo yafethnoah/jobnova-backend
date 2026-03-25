@@ -1,5 +1,6 @@
 const { rewriteResume } = require('./resumeEngine');
 const { createPackageFiles } = require('./exportService');
+const { toStringList, safeJoin, ensureParagraphs, normalizeExportFormat } = require('../lib/normalize');
 
 function clean(value = '') {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -50,6 +51,36 @@ function titleAlignment(targetRole = '', resumeText = '', jobDescription = '') {
   return Math.max(3, Math.min(9, hits * 3));
 }
 
+function sectionCompletenessScore(resumeText = '') {
+  const raw = String(resumeText || '').toLowerCase();
+  const sections = {
+    summary: /summary|profile|professional summary/.test(raw),
+    skills: /skills|core competencies|competencies/.test(raw),
+    experience: /experience|employment|work history/.test(raw),
+    education: /education|academic/.test(raw),
+    contact: /@|linkedin\.com|phone|\+\d/.test(raw)
+  };
+  const hits = Object.values(sections).filter(Boolean).length;
+  return {
+    score: Math.round((hits / 5) * 10),
+    sections
+  };
+}
+
+function semanticAlignmentScore(resumeKeywords = [], jdKeywords = []) {
+  const r = new Set(resumeKeywords);
+  const j = new Set(jdKeywords);
+  const intersection = [...j].filter((item) => r.has(item));
+  const unionSize = new Set([...resumeKeywords, ...jdKeywords]).size || 1;
+  const jaccard = intersection.length / unionSize;
+  const coverage = jdKeywords.length ? intersection.length / jdKeywords.length : 0.45;
+  return {
+    score: Math.round(Math.min(15, (jaccard * 8) + (coverage * 7))),
+    jaccard: Number(jaccard.toFixed(3)),
+    coverage: Number(coverage.toFixed(3))
+  };
+}
+
 function scoreResume({ resumeText = '', jobDescription = '', targetRole = '' }) {
   const resumeKeywords = [...new Set([...extractKeywords(resumeText), ...extractPhrases(resumeText)])];
   const jdKeywords = [...new Set([...extractKeywords(jobDescription), ...extractPhrases(jobDescription)])];
@@ -57,21 +88,23 @@ function scoreResume({ resumeText = '', jobDescription = '', targetRole = '' }) 
   const missingKeywords = jdKeywords.filter((keyword) => !resumeKeywords.includes(keyword)).slice(0, 12);
   const keywordAlignment = jdKeywords.length ? matchedKeywords.length / jdKeywords.length : 0.45;
   const skillAlignment = Math.min(1, matchedKeywords.length / 8);
-  const experienceEvidence = Math.min(1, ((resumeText.match(/^[\-•▪*]/gm) || []).length + (resumeText.match(/\b(managed|coordinated|led|supported|delivered|improved|maintained|created|implemented|analyzed)\b/gi) || []).length) / 16);
+  const experienceEvidence = Math.min(1, ((resumeText.match(/^[\-•▪*]/gm) || []).length + (resumeText.match(/\b(managed|coordinated|led|supported|delivered|improved|maintained|created|implemented|analyzed|owned|launched|streamlined)\b/gi) || []).length) / 16);
   const titleScore = titleAlignment(targetRole, resumeText, jobDescription);
   const risks = formattingRisks(resumeText);
   const weak = weakPhrases(resumeText);
   const formattingScore = Math.max(2, 15 - risks.length * 4);
-  const keywordScore = Math.round(keywordAlignment * 35);
-  const skillsScore = Math.round(skillAlignment * 20);
-  const experienceScore = Math.round(experienceEvidence * 15);
+  const keywordScore = Math.round(keywordAlignment * 30);
+  const skillsScore = Math.round(skillAlignment * 15);
+  const experienceScore = Math.round(experienceEvidence * 12);
+  const semantic = semanticAlignmentScore(resumeKeywords, jdKeywords);
+  const sectionCompleteness = sectionCompletenessScore(resumeText);
   const seniorityScore = Math.min(10, Math.max(4, Math.round((matchedKeywords.filter((k) => /manager|lead|strategy|stakeholder|ownership|project/.test(k)).length + 4))));
-  const overallScore = Math.max(34, Math.min(98, keywordScore + skillsScore + titleScore + experienceScore + formattingScore + seniorityScore - weak.length * 2));
+  const overallScore = Math.max(34, Math.min(98, keywordScore + skillsScore + titleScore + experienceScore + formattingScore + seniorityScore + semantic.score + sectionCompleteness.score - weak.length * 2));
 
   const topImprovements = [
     missingKeywords[0] ? `Add truthful evidence for “${missingKeywords[0]}” if the experience is real.` : 'Keep aligning summary and bullets to the job description language.',
     weak.length ? 'Replace vague wording with action + scope + outcome bullets.' : 'Keep bullets concrete and evidence-led.',
-    risks[0] ? 'Flatten layout to a single-column ATS-safe structure.' : 'Maintain a clean single-column ATS-safe layout.'
+    !sectionCompleteness.sections.summary ? 'Add a short professional summary tailored to the target role.' : (risks[0] ? 'Flatten layout to a single-column ATS-safe structure.' : 'Maintain a clean single-column ATS-safe layout.')
   ];
 
   return {
@@ -82,12 +115,17 @@ function scoreResume({ resumeText = '', jobDescription = '', targetRole = '' }) 
     experienceScore,
     formattingScore,
     seniorityScore,
+    semanticScore: semantic.score,
+    sectionCompletenessScore: sectionCompleteness.score,
+    semanticSignals: semantic,
+    sectionSignals: sectionCompleteness.sections,
     matchedKeywords,
     missingKeywords,
     formattingRisks: risks,
     weakPhrases: weak,
     recruiterConcerns: [
       ...(missingKeywords.slice(0, 2).map((item) => `Limited visible evidence for ${item}.`)),
+      ...(!sectionCompleteness.sections.experience ? ['Experience section label is not clearly detectable.'] : []),
       ...(weak.slice(0, 2).map((item) => `Vague phrasing detected: “${item}”.`)),
       ...(risks[0] ? [risks[0]] : [])
     ],
@@ -129,13 +167,17 @@ async function generateTailoredResume(input = {}) {
 
 async function generateApplicationPackage(input = {}) {
   const tailored = await generateTailoredResume(input);
+  tailored.optimizedSkills = toStringList(tailored.optimizedSkills, []);
+  tailored.improvedBullets = toStringList(tailored.improvedBullets, []);
+  tailored.roleAlignmentNotes = toStringList(tailored.roleAlignmentNotes, []);
+  tailored.rewrittenResume = ensureParagraphs(tailored.rewrittenResume, '');
   const roleTitle = clean(input.targetRole || input.roleTitle || 'Target Role');
   const companyName = clean(input.companyName || 'Company');
   const candidateName = clean(input.fullName || 'Candidate');
   const coverLetter = [
     `Dear Hiring Team at ${companyName},`,
     '',
-    `I am applying for the ${roleTitle} role. My background includes transferable experience in ${tailored.optimizedSkills.slice(0, 4).join(', ')} and a strong track record of coordination, communication, and service-focused execution.`,
+    `I am applying for the ${roleTitle} role. My background includes transferable experience in ${safeJoin(tailored.optimizedSkills.slice(0, 4), ', ', 'coordination, communication, and service-focused execution')} and a strong track record of coordination, communication, and service-focused execution.`,
     '',
     'I would welcome the opportunity to bring this experience to your team and contribute quickly with a practical, organized, and people-focused approach.',
     '',
@@ -180,7 +222,7 @@ async function generateExportBundle(input = {}) {
     amendedResume: packageResult.tailoredResume?.rewrittenResume || packageResult.rewrittenResume || '',
     coverLetter: packageResult.coverLetter || input.coverLetter || '',
     recruiterEmail: packageResult.recruiterEmail || input.recruiterEmail || '',
-    selectedExportFormat: input.selectedExportFormat || input.exportType || 'both',
+    selectedExportFormat: normalizeExportFormat(input.selectedExportFormat || input.exportType || 'both', 'both'),
     resumeThemeId: input.resumeThemeId || input.theme || 'classic-canadian-professional',
     layoutMode: input.layoutMode || input.layout || 'two-page'
   });

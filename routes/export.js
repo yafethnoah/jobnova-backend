@@ -3,6 +3,7 @@ const express = require('express');
 const { requireAuth } = require('../middleware/auth');
 const { saveState } = require('../data/store');
 const { generateExportBundle } = require('../services/atsService');
+const { createExportTestBundle } = require('../services/exportService');
 const { exportSchema, parse } = require('../lib/validation');
 const { enqueue } = require('../lib/jobQueue');
 
@@ -12,7 +13,7 @@ router.use(requireAuth);
 router.post('/resume', async (req, res, next) => {
   try {
     const input = parse(exportSchema, req.body);
-    const job = enqueue('export', { userId: req.userData.id || null, targetRole: input.targetRole });
+    const job = await enqueue('resume-export', { userId: req.user?.id || null, targetRole: input.targetRole });
     const bundle = await generateExportBundle(input);
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     const files = bundle.files.map((file) => ({
@@ -37,6 +38,24 @@ router.post('/resume', async (req, res, next) => {
     req.userData.exportLibrary = req.userData.exportLibrary.slice(0, 50);
     saveState();
     res.json({ ...record, packageResult: bundle.packageResult });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
+router.get('/test', async (req, res, next) => {
+  try {
+    const theme = String(req.query.theme || process.env.EXPORT_TEST_THEME || 'classic-canadian-professional');
+    const layout = String(req.query.layout || process.env.EXPORT_TEST_LAYOUT || 'one-page');
+    const files = await createExportTestBundle({ theme, layout });
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    res.json({
+      ok: true,
+      theme,
+      layout,
+      files: files.map((file) => ({ ...file, url: `${baseUrl}/downloads/${file.fileName}` }))
+    });
   } catch (error) {
     next(error);
   }

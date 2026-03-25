@@ -1,59 +1,76 @@
 {
-  "user": {
-    "id": "user-1",
-    "email": "you@example.com",
-    "fullName": "Shadi",
-    "onboardingCompleted": false,
-    "targetRole": "HR Coordinator",
-    "location": "Mississauga, ON",
-    "summary": "Internationally experienced professional building a stable HR path in Canada."
+  "users": {
+    "user-1": {
+      "id": "user-1",
+      "email": "you@example.com",
+      "fullName": "Shadi",
+      "passwordHash": "e38b01a74d58bd39491fcbfc7311d2ac:34273dd0560b9ef99c9847765eaf846a0dafcf71c73beb47ce484a1f83e2e6f56c0035c99d51301e4ec77c4e1c3dbb2b60bc91bb5e0fe532586568dbcb68fa1c",
+      "onboardingCompleted": false,
+      "targetRole": "HR Coordinator",
+      "location": "Mississauga, ON",
+      "summary": "Internationally experienced professional building a stable HR path in Canada.",
+      "createdAt": "2026-03-25T04:43:47.410Z",
+      "updatedAt": "2026-03-25T04:43:47.410Z",
+      "authProvider": "local"
+    }
   },
-  "onboarding": {},
-  "applications": [
-    {
-      "id": "app-1",
-      "company": "RBC",
-      "role": "HR Coordinator",
-      "status": "applied",
-      "followUpDate": "2026-03-18",
-      "notes": "Applied through company portal"
-    },
-    {
-      "id": "app-2",
-      "company": "Sheridan College",
-      "role": "People & Culture Assistant",
-      "status": "saved",
-      "notes": "Need tailored resume version"
+  "sessions": {},
+  "userData": {
+    "user-1": {
+      "onboarding": {},
+      "applications": [
+        {
+          "id": "app-1774413827411",
+          "company": "RBC",
+          "role": "HR Coordinator",
+          "status": "applied",
+          "followUpDate": "2026-03-18",
+          "notes": "Applied through company portal",
+          "createdAt": "2026-03-25T04:43:47.411Z"
+        },
+        {
+          "id": "app-1774413827412",
+          "company": "Sheridan College",
+          "role": "People & Culture Assistant",
+          "status": "saved",
+          "notes": "Need tailored resume version",
+          "createdAt": "2026-03-25T04:43:47.411Z"
+        }
+      ],
+      "resources": [
+        {
+          "id": "res-1",
+          "title": "Employment Ontario",
+          "description": "Employment services, training, job support, and local programs.",
+          "url": "https://www.ontario.ca/page/employment-ontario",
+          "category": "Employment",
+          "official": true
+        },
+        {
+          "id": "res-2",
+          "title": "Job Bank",
+          "description": "Canadian job postings, career planning, and labour market information.",
+          "url": "https://www.jobbank.gc.ca/home",
+          "category": "Jobs",
+          "official": true
+        },
+        {
+          "id": "res-3",
+          "title": "Credential Recognition in Ontario",
+          "description": "Support for internationally trained professionals and regulated occupations.",
+          "url": "https://www.ontario.ca/page/ontario-bridge-training-program",
+          "category": "Credentials",
+          "official": true
+        }
+      ],
+      "resumes": [],
+      "resumeVersions": [],
+      "exportLibrary": [],
+      "atsResults": [],
+      "autopilotPackages": [],
+      "interviewSessions": [],
+      "liveSessions": {},
+      "careerPath": null
     }
-  ],
-  "resources": [
-    {
-      "id": "res-1",
-      "title": "Employment Ontario",
-      "description": "Employment services, training, job support, and local programs.",
-      "url": "https://www.ontario.ca/page/employment-ontario",
-      "category": "Employment",
-      "official": true
-    },
-    {
-      "id": "res-2",
-      "title": "Job Bank",
-      "description": "Canadian job postings, career planning, and labour market information.",
-      "url": "https://www.jobbank.gc.ca/home",
-      "category": "Jobs",
-      "official": true
-    },
-    {
-      "id": "res-3",
-      "title": "Credential Recognition in Ontario",
-      "description": "Support for internationally trained professionals and regulated occupations.",
-      "url": "https://www.ontario.ca/page/ontario-bridge-training-program",
-      "category": "Credentials",
-      "official": true
-    }
-  ],
-  "resumes": [],
-  "resumeVersions": [],
-  "interviewSessions": [],
-  "liveSessions": {}
+  }
 }

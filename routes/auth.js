@@ -5,84 +5,94 @@ const {
   verifyPassword,
   issueSession,
   revokeSession,
-  publicUser
+  publicUser,
 } = require('../data/store');
 const { requireAuth } = require('../middleware/auth');
-const { getSupabaseAdmin, getSupabaseClient } = require('../lib/supabase');
 
 const router = express.Router();
+
+function normalizeText(value, fallback = '') {
+  if (typeof value !== 'string') return fallback;
+  const cleaned = value.trim();
+  return cleaned.length ? cleaned : fallback;
+}
 
 router.get('/provider-status', (_req, res) => {
   return res.json({
     localAuth: true,
-    supabaseAuthConfigured: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY)
+    supabaseAuthConfigured: Boolean(
+      process.env.SUPABASE_URL &&
+        process.env.SUPABASE_ANON_KEY &&
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+    ),
   });
 });
 
-router.post('/login', async (req, res) => {
-  const { email, password } = req.body || {};
-  const user = findUserByEmail(email);
-  if (user && verifyPassword(password, user.passwordHash)) {
-    const accessToken = issueSession(user.id);
-    return res.json({ accessToken, user: publicUser(user), authProvider: 'local' });
-  }
-
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (!error && data?.user) {
-        let localUser = findUserByEmail(email);
-        if (!localUser) {
-          localUser = createUser({ email, fullName: data.user.user_metadata?.full_name || email.split('@')[0], password: password || Math.random().toString(36) });
-        }
-        const accessToken = issueSession(localUser.id);
-        return res.json({ accessToken, user: publicUser(localUser), authProvider: 'supabase' });
-      }
-    } catch {
-      // fall through
-    }
-  }
-
-  return res.status(401).json({ message: 'Invalid email or password.' });
-});
-
-router.post('/register', async (req, res) => {
+async function handleLogin(req, res) {
   try {
-    const { email, fullName, password } = req.body || {};
+    const email = normalizeText(req.body?.email, '').toLowerCase();
+    const password = normalizeText(req.body?.password, '');
+
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password are required.' });
     }
 
-    const admin = getSupabaseAdmin();
-    if (admin) {
-      try {
-        await admin.auth.admin.createUser({
-          email,
-          password,
-          email_confirm: true,
-          user_metadata: { full_name: fullName || '' }
-        });
-      } catch {
-        // non-fatal fallback to local account only
-      }
+    const user = await findUserByEmail(email);
+    if (!user || !verifyPassword(password, user.passwordHash)) {
+      return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
-    const user = createUser({ email, fullName, password });
-    const accessToken = issueSession(user.id);
-    return res.json({ accessToken, user: publicUser(user), authProvider: admin ? 'local+supabase' : 'local' });
+    const accessToken = await issueSession(user.id);
+    return res.status(200).json({ ok: true, accessToken, user: publicUser(user) });
   } catch (error) {
-    return res.status(400).json({ message: error.message || 'Could not create account.' });
+    return res.status(500).json({ message: error?.message || 'Could not sign in.' });
   }
-});
+}
+
+async function handleRegister(req, res) {
+  try {
+    const email = normalizeText(req.body?.email, '').toLowerCase();
+    const password = normalizeText(req.body?.password, '');
+    const fullName = normalizeText(req.body?.fullName, '');
+
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required.' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+    }
+
+    const user = await createUser({ email, fullName, password });
+    const accessToken = await issueSession(user.id);
+
+    return res.status(201).json({ ok: true, accessToken, user: publicUser(user) });
+  } catch (error) {
+    const status = /already exists/i.test(String(error?.message || '')) ? 409 : 400;
+    return res.status(status).json({ message: error?.message || 'Could not create account.' });
+  }
+}
+
+router.post('/login', handleLogin);
+router.post('/sign-in', handleLogin);
+router.post('/register', handleRegister);
+router.post('/sign-up', handleRegister);
 
 router.get('/me', requireAuth, (req, res) => {
-  return res.json(publicUser(req.user));
+  return res.status(200).json(publicUser(req.user));
 });
 
-router.post('/logout', requireAuth, (req, res) => {
-  revokeSession(req.authToken);
-  return res.json({ success: true });
+router.post('/me', requireAuth, (req, res) => {
+  return res.status(200).json(publicUser(req.user));
+});
+
+router.post('/logout', requireAuth, async (req, res) => {
+  try {
+    await revokeSession(req.auth?.token || null);
+    return res.status(200).json({ ok: true, message: 'Signed out successfully.' });
+  } catch (error) {
+    return res.status(500).json({ message: error?.message || 'Could not sign out.' });
+  }
 });
 
 module.exports = router;

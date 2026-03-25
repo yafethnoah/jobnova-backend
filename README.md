@@ -1,43 +1,34 @@
-# JobNova V12.0.0 Production Source Pack
+# JobNova V12 Backend
 
-This package contains the Expo mobile app and Node/Express backend for JobNova V12.
+## Main routes
+- /auth
+- /users
+- /career-path
+- /applications
+- /resume
+- /assets
+- /linkedin
+- /interview
+- /interview/realtime
+- /ats
+- /exports
+- /email
+- /dashboard
+- /jobs
 
-## What was fixed in this handoff
-- ATS check crash from missing `jobExtractionWarning` state
-- clearer extraction feedback in ATS and Job Ready flows
-- safer public welcome screen safe-area import
-- refreshed frontend and backend env templates
-- added a starter Postgres migration for core V12 tables
-
-## Honest status
-This is a stronger source baseline, not a guaranteed end-to-end release build from this environment. It still needs local dependency install, app launch, and device validation on your machine.
-
-## Local setup
-
-### Mobile
+## Setup
 ```bash
-npm install
 cp .env.example .env
-npx expo start -c
-```
-
-### Backend
-```bash
-cd backend
 npm install
-cp .env.example .env
 npm run dev
 ```
 
-## Production setup
-- frontend production template: `.env.production.example`
-- backend production template: `backend/.env.production.example`
-- backend health endpoint: `/health`
-- starter SQL migration: `backend/db/migrations/003_v12_core_tables.sql`
+## Health check
+Open `/health` after startup. In production, the best state is Postgres enabled and healthy.
 
-## Important note
-Before TestFlight or live release, validate:
-- backend `/health` returns healthy or fallback as expected
-- ATS compare runs against live backend
-- Job Ready exports save correctly on device
-- interview screens and subscriptions load without runtime errors
+## Persistence
+- If `DATABASE_URL` is missing and `ALLOW_LOCAL_FALLBACK=true`, the backend falls back to local JSON for some flows.
+- For production, use `backend/.env.production.example` and apply the migration in `backend/db/migrations/003_v12_core_tables.sql`.
+
+## Export engine
+The backend can generate `.docx`, `.pdf`, and `.zip` files in `data/generated/`, exposed through `/downloads/<fileName>`.

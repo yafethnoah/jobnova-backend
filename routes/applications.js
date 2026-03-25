@@ -1,6 +1,6 @@
 const express = require('express');
 const { saveState } = require('../data/store');
-const { syncUserState } = require('../lib/cloudSync');
+const { enqueueUserSync } = require('../lib/cloudSync');
 const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 
@@ -16,7 +16,7 @@ router.post('/', async (req, res) => {
   const item = { id: `app-${Date.now()}`, userId: req.user.id, createdAt: new Date().toISOString(), ...(req.body || {}) };
   req.userData.applications.unshift(item);
   saveState();
-  await syncUserState(req.user, req.userData, 'application', item, item.id);
+  enqueueUserSync(req.user, req.userData, 'application', item, item.id);
   return res.json(item);
 });
 router.patch('/:id', async (req, res) => {
@@ -24,7 +24,7 @@ router.patch('/:id', async (req, res) => {
   if (index === -1) return res.status(404).json({ message: 'Application not found.' });
   req.userData.applications[index] = { ...req.userData.applications[index], ...(req.body || {}), updatedAt: new Date().toISOString() };
   saveState();
-  await syncUserState(req.user, req.userData, 'application', req.userData.applications[index], req.userData.applications[index].id);
+  enqueueUserSync(req.user, req.userData, 'application', req.userData.applications[index], req.userData.applications[index].id);
   return res.json(req.userData.applications[index]);
 });
 router.delete('/:id', async (req, res) => {
@@ -32,7 +32,7 @@ router.delete('/:id', async (req, res) => {
   if (index === -1) return res.status(404).json({ message: 'Application not found.' });
   const [deleted] = req.userData.applications.splice(index, 1);
   saveState();
-  await syncUserState(req.user, req.userData, 'application_deleted', deleted || { id: req.params.id }, req.params.id);
+  enqueueUserSync(req.user, req.userData, 'application_deleted', deleted || { id: req.params.id }, req.params.id);
   return res.json({ success: true });
 });
 

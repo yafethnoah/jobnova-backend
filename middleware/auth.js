@@ -20,11 +20,7 @@ function extractToken(headerValue = '') {
 
 function signAppJwt(user) {
   return jwt.sign(
-    {
-      sub: user.id,
-      email: user.email,
-      authProvider: user.authProvider || 'local',
-    },
+    { sub: user.id, email: user.email, authProvider: user.authProvider || 'local' },
     env.JWT_SECRET,
     { expiresIn: env.JWT_EXPIRES_IN }
   );
@@ -121,7 +117,6 @@ async function hydrateRequestAuth(req, options = { required: false }) {
   if (!token) {
     req.user = null;
     req.userData = ensureUserData('guest');
-
     if (options.required) {
       return {
         ok: false,
@@ -129,7 +124,6 @@ async function hydrateRequestAuth(req, options = { required: false }) {
         body: { message: 'Authorization token is required.' },
       };
     }
-
     return { ok: true };
   }
 
@@ -176,14 +170,10 @@ async function hydrateRequestAuth(req, options = { required: false }) {
 async function requireAuth(req, res, next) {
   try {
     const result = await hydrateRequestAuth(req, { required: true });
-    if (!result.ok) {
-      return res.status(result.status).json(result.body);
-    }
+    if (!result.ok) return res.status(result.status).json(result.body);
     return next();
   } catch (error) {
-    return res.status(401).json({
-      message: error?.message || 'Authentication failed.',
-    });
+    return res.status(401).json({ message: error?.message || 'Authentication failed.' });
   }
 }
 

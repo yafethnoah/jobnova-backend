@@ -1,3 +1,13 @@
+const express = require('express');
+const router = express.Router();
+
+const { saveState, updateUser } = require('../data/store');
+const { generateCareerPath } = require('../services/careerPathEngine');
+const { enqueueUserSync } = require('../lib/cloudSync');
+const { requireAuth } = require('../middleware/auth');
+
+router.use(requireAuth);
+
 router.post('/generate', async (req, res) => {
   try {
     const payload = {
@@ -19,7 +29,6 @@ router.post('/generate', async (req, res) => {
     } catch (aiError) {
       console.error("AI FAILED → using fallback:", aiError.message);
 
-      // 🔥 FALLBACK SYSTEM (CRITICAL)
       result = {
         summary: `Start with bridge roles aligned with ${payload.profession}. Build Canadian experience and transition to your target role.`,
         steps: [
@@ -31,11 +40,9 @@ router.post('/generate', async (req, res) => {
       };
     }
 
-    const targetRole = payload.profession;
-
     const updatedUser = updateUser(req.user.id, {
       onboardingCompleted: true,
-      targetRole
+      targetRole: payload.profession
     });
 
     req.userData.careerPath = {
@@ -46,6 +53,14 @@ router.post('/generate', async (req, res) => {
     };
 
     await saveState();
+
+    enqueueUserSync(
+      updatedUser,
+      req.userData,
+      'career_path',
+      req.userData.careerPath,
+      req.userData.careerPath.id
+    );
 
     return res.json({
       ok: true,
@@ -63,3 +78,9 @@ router.post('/generate', async (req, res) => {
     });
   }
 });
+
+router.get('/latest', (req, res) => {
+  return res.json(req.userData.careerPath || null);
+});
+
+module.exports = router;

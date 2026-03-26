@@ -8,48 +8,62 @@ import { ErrorState } from "@/src/components/ui/ErrorState";
 import { useAuth } from "@/src/features/auth/useAuth";
 import { useOnboardingStore } from "@/src/features/onboarding/onboardingStore";
 import { onboardingApi } from "@/src/api/onboarding";
-import { saveJson } from "@/src/lib/localCache";
-
-const CAREER_PATH_CACHE_KEY = "northpath_career_path_result";
 
 export default function OnboardingResultsScreen() {
-  const { accessToken, markOnboardingComplete } = useAuth();
+  const { accessToken, signOut, markOnboardingComplete } = useAuth();
   const { answers } = useOnboardingStore();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const canSubmit = Boolean(answers.lifeStage && answers.profession);
-
   async function handleFinish() {
-    if (!accessToken || !answers.lifeStage || !answers.profession) {
-      setError("Missing onboarding data.");
-      return;
-    }
-
     try {
-      setError("");
       setSubmitting(true);
+      setError("");
 
-      const fullAnswers = {
-        lifeStage: answers.lifeStage,
-        profession: answers.profession,
-        yearsExperience: answers.yearsExperience ?? "",
-        educationLevel: answers.educationLevel ?? "",
-        englishLevel: answers.englishLevel ?? "",
-        frenchLevel: answers.frenchLevel,
-        hasCanadianExperience: answers.hasCanadianExperience ?? false,
-        targetGoal: answers.targetGoal ?? "",
-        urgencyLevel: answers.urgencyLevel ?? "medium"
+      console.log("[ONBOARDING] accessToken exists:", Boolean(accessToken));
+      console.log("[ONBOARDING] answers:", answers);
+
+      if (!accessToken) {
+        throw new Error("Your session expired. Please sign in again.");
+      }
+
+      const payload = {
+        lifeStage: answers.lifeStage || "",
+        profession: answers.profession || "",
+        yearsExperience: answers.yearsExperience || "",
+        educationLevel: answers.educationLevel || "",
+        englishLevel: answers.englishLevel || "",
+        frenchLevel: answers.frenchLevel || "",
+        hasCanadianExperience: answers.hasCanadianExperience || false,
+        targetGoal: answers.targetGoal || "",
+        urgencyLevel: answers.urgencyLevel || "medium",
       };
 
-      await onboardingApi.saveAnswers(accessToken, fullAnswers);
-      const pathResult = await onboardingApi.generateCareerPath(accessToken, fullAnswers);
-      await saveJson(CAREER_PATH_CACHE_KEY, pathResult);
+      const saveResult = await onboardingApi.saveAnswers(payload);
+      if ((saveResult as any)?.error === "unauthorized") {
+        throw new Error("Unauthorized");
+      }
+
+      const pathResult = await onboardingApi.generateCareerPath();
+      if ((pathResult as any)?.error === "unauthorized") {
+        throw new Error("Unauthorized");
+      }
 
       markOnboardingComplete();
       router.replace("/(app)/home");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not finish onboarding");
+      const message =
+        err instanceof Error ? err.message : "Could not complete onboarding";
+
+      console.log("[ONBOARDING] failed:", message);
+
+      if (/auth|token|401|unauthorized/i.test(message)) {
+        await signOut();
+        router.replace("/(public)/login");
+        return;
+      }
+
+      setError(message);
     } finally {
       setSubmitting(false);
     }
@@ -62,7 +76,7 @@ export default function OnboardingResultsScreen() {
       </Text>
 
       <Text style={{ fontSize: 16, lineHeight: 24, color: "#96A7DE" }}>
-        This is your starter map, not destiny carved into marble by dramatic owls.
+        This is your starter map, not destiny carved into marble.
       </Text>
 
       <AppCard>
@@ -85,16 +99,21 @@ export default function OnboardingResultsScreen() {
           Suggested direction
         </Text>
         <Text style={{ marginTop: 10, lineHeight: 24, color: "#C8D3F5" }}>
-          Begin with bridge-friendly roles that build Canadian experience while targeting your longer-term professional path.
+          Begin with bridge-friendly roles that build Canadian experience while
+          targeting your longer-term professional path.
         </Text>
       </AppCard>
 
-      {error ? <ErrorState title="Could not complete onboarding" message={error} /> : null}
+      {error ? (
+        <ErrorState title="Could not complete onboarding" message={error} />
+      ) : null}
 
       <AppButton
-        label={submitting ? "Finishing..." : "Enter JobNova"}
-        onPress={() => void handleFinish()}
-        disabled={submitting || !canSubmit}
+        label={submitting ? "Finishing..." : "Go to my dashboard"}
+        onPress={() => {
+          void handleFinish();
+        }}
+        disabled={submitting}
       />
     </AppScreen>
   );

@@ -1,240 +1,215 @@
-import { env } from "@/src/lib/env";
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL?.trim().replace(/\/+$/, "") || "";
 
-type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+let accessToken: string | null = null;
+
+export const setAccessToken = (token: string | null) => {
+  accessToken = token;
+};
+
+export const getClientAccessToken = () => accessToken;
+
+type RequestMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 type RequestOptions = {
-  method?: HttpMethod;
+  method?: RequestMethod;
   body?: unknown;
-  token?: string | null;
-  headers?: Record<string, string | null | undefined>;
+  requireAuth?: boolean;
+  isFormData?: boolean;
+  tokenOverride?: string | null;
   timeoutMs?: number;
-  disableApiPrefixFallback?: boolean;
 };
 
-type ApiErrorPayload = {
-  message?: string;
-  error?: string;
-  requestId?: string;
-  details?: unknown;
+type UnauthorizedResponse = {
+  error: "unauthorized";
+  status: 401;
 };
 
-export class ApiRequestError extends Error {
-  status?: number;
-  requestId?: string;
-  details?: unknown;
-
-  constructor(
-    message: string,
-    init?: { status?: number; requestId?: string; details?: unknown }
-  ) {
-    super(message);
-    this.name = "ApiRequestError";
-    this.status = init?.status;
-    this.requestId = init?.requestId;
-    this.details = init?.details;
-  }
+function isRequestMethod(value: unknown): value is RequestMethod {
+  return value === "GET" || value === "POST" || value === "PUT" || value === "PATCH" || value === "DELETE";
 }
 
-function joinUrl(baseUrl: string, path: string) {
-  const cleanBase = baseUrl.replace(/\/+$/, "");
-  const cleanPath = path.startsWith("/") ? path : `/${path}`;
-  return `${cleanBase}${cleanPath}`;
-}
+async function safeParseResponse(res: Response) {
+  const contentType = res.headers.get("content-type") || "";
+  const rawText = await res.text();
 
-function prefixApiPath(path: string) {
-  if (!path.startsWith("/")) return `/api/${path}`;
-  if (path.startsWith("/api/")) return path;
-  if (path === "/api") return path;
-  return `/api${path}`;
-}
-
-function sanitizeHeaders(
-  headers?: Record<string, string | null | undefined>
-): Record<string, string> {
-  return Object.entries(headers || {}).reduce<Record<string, string>>(
-    (acc, [key, value]) => {
-      if (!key || value == null) return acc;
-      acc[key] = String(value);
-      return acc;
-    },
-    {}
-  );
-}
-
-function sanitizeBody(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(sanitizeBody);
+  if (!rawText) {
+    return { data: null, rawText: "" };
   }
 
-  if (value && typeof value === "object" && !(value instanceof FormData)) {
-    return Object.entries(value as Record<string, unknown>).reduce<
-      Record<string, unknown>
-    >((acc, [key, entry]) => {
-      if (!key || entry === undefined) return acc;
-      acc[key] = sanitizeBody(entry);
-      return acc;
-    }, {});
+  if (contentType.includes("application/json")) {
+    try {
+      return {
+        data: JSON.parse(rawText),
+        rawText,
+      };
+    } catch {
+      throw new Error("Server returned invalid JSON.");
+    }
   }
 
-  return value;
+  return {
+    data: null,
+    rawText,
+  };
 }
 
-function buildNetworkError(error: unknown): Error {
-  const message = error instanceof Error ? error.message : String(error ?? "");
-
-  if (/aborted|timed out/i.test(message)) {
-    return new Error(
-      "The request timed out. Check the backend URL, your network connection, or the server logs."
-    );
+async function request<T = any>(
+  path: string,
+  {
+    method = "GET",
+    body,
+    requireAuth = true,
+    isFormData = false,
+    tokenOverride,
+    timeoutMs = 30000,
+  }: RequestOptions = {}
+): Promise<T | UnauthorizedResponse> {
+  if (!API_BASE_URL) {
+    throw new Error("Missing EXPO_PUBLIC_API_BASE_URL in .env");
   }
 
-  if (/network request failed|failed to fetch|load failed/i.test(message)) {
-    return new Error(
-      "Could not reach the backend. Verify EXPO_PUBLIC_API_BASE_URL, confirm the server is running, and check device network access."
-    );
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const url = `${API_BASE_URL}${normalizedPath}`;
+
+  const headers: Record<string, string> = {};
+  if (!isFormData) {
+    headers["Content-Type"] = "application/json";
   }
 
-  return error instanceof Error ? error : new Error(message || "Request failed.");
-}
+  const resolvedToken = tokenOverride ?? accessToken;
 
-function cleanHtmlErrorMessage(payload: string, status: number): string {
-  const match = payload.match(/<pre>(.*?)<\/pre>/is);
-  const extracted = (match?.[1] || payload)
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (/Cannot POST/i.test(extracted) || /Cannot GET/i.test(extracted)) {
-    return `The backend route was not found (${extracted}). Confirm the backend is updated and EXPO_PUBLIC_API_BASE_URL points to the API server.`;
+  if (requireAuth) {
+    if (!resolvedToken) {
+      return { error: "unauthorized", status: 401 };
+    }
+    headers["Authorization"] = `Bearer ${resolvedToken}`;
   }
 
-  return extracted || `Request failed with status ${status}`;
-}
-
-async function parseErrorResponse(response: Response): Promise<ApiRequestError> {
-  const contentType = response.headers.get("content-type") ?? "";
-  const isJson = contentType.includes("application/json");
-  let payload: ApiErrorPayload | string | null = null;
-
-  try {
-    payload = isJson ? await response.json() : await response.text();
-  } catch {
-    payload = null;
-  }
-
-  const message =
-    typeof payload === "string"
-      ? cleanHtmlErrorMessage(payload, response.status)
-      : payload?.message ||
-        payload?.error ||
-        `Request failed with status ${response.status}`;
-
-  return new ApiRequestError(message, {
-    status: response.status,
-    requestId: typeof payload === "object" ? payload?.requestId : undefined,
-    details:
-      typeof payload === "object"
-        ? payload?.details
-        : typeof payload === "string"
-          ? payload
-          : undefined,
-  });
-}
-
-async function parseResponse<T>(response: Response): Promise<T> {
-  const contentType = response.headers.get("content-type") ?? "";
-  const isJson = contentType.includes("application/json");
-
-  if (!response.ok) throw await parseErrorResponse(response);
-  if (!isJson) return {} as T;
-
-  return response.json() as Promise<T>;
-}
-
-async function fetchWithTimeout(
-  input: string,
-  init: RequestInit,
-  timeoutMs = 12000
-): Promise<Response> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    return await fetch(input, { ...init, signal: controller.signal });
-  } catch (error) {
-    throw buildNetworkError(error);
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-async function apiRequestOnce<T>(
-  baseUrl: string,
-  path: string,
-  options: RequestOptions = {}
-): Promise<T> {
-  const headers = sanitizeHeaders({
-    "Content-Type": "application/json",
-    ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
-    ...(options.headers || {}),
-  });
-
-  const body =
-    options.body !== undefined
-      ? JSON.stringify(sanitizeBody(options.body))
-      : undefined;
-
-  const url = joinUrl(baseUrl, path);
-
-  console.log("[API REQUEST]", {
-    method: options.method ?? "GET",
-    url,
-    hasToken: Boolean(options.token),
-  });
-
-  const response = await fetchWithTimeout(
-    url,
-    {
-      method: options.method ?? "GET",
+    const response = await fetch(url, {
+      method,
       headers,
-      body,
-    },
-    options.timeoutMs
-  );
+      signal: controller.signal,
+      body:
+        body == null
+          ? undefined
+          : isFormData
+          ? (body as BodyInit)
+          : JSON.stringify(body),
+    });
 
-  const parsed = await parseResponse<T>(response);
+    const { data, rawText } = await safeParseResponse(response);
 
-  console.log("[API RESPONSE]", {
-    url,
-    status: response.status,
-    ok: response.ok,
-    data: parsed,
-  });
-
-  return parsed;
-}
-
-export async function apiRequest<T>(
-  path: string,
-  options: RequestOptions = {}
-): Promise<T> {
-  if (!env.apiBaseUrl) {
-    throw new Error("EXPO_PUBLIC_API_BASE_URL is missing.");
-  }
-
-  try {
-    return await apiRequestOnce<T>(env.apiBaseUrl, path, options);
-  } catch (error) {
-    if (
-      !options.disableApiPrefixFallback &&
-      !(error instanceof ApiRequestError && error.status && error.status !== 404)
-    ) {
-      return apiRequestOnce<T>(env.apiBaseUrl, prefixApiPath(path), {
-        ...options,
-        disableApiPrefixFallback: true,
-      });
+    if (response.status === 401) {
+      return { error: "unauthorized", status: 401 };
     }
 
+    if (!response.ok) {
+      if (data && typeof data === "object" && "message" in data) {
+        throw new Error(String((data as { message?: unknown }).message ?? "Request failed"));
+      }
+
+      if (rawText) {
+        if (rawText.trim().startsWith("<")) {
+          throw new Error(
+            `Server returned HTML instead of JSON (${response.status}). Check EXPO_PUBLIC_API_BASE_URL and backend route.`
+          );
+        }
+        throw new Error(rawText);
+      }
+
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+
+    return data as T;
+  } catch (error: any) {
+    if (error?.name === "AbortError") {
+      throw new Error("Request timed out. Please try again.");
+    }
     throw error;
+  } finally {
+    clearTimeout(timeout);
   }
+}
+
+export function apiRequest<T = any>(
+  path: string,
+  method: RequestMethod = "GET",
+  body?: unknown
+) {
+  return request<T>(path, { method, body, requireAuth: true });
+}
+
+export function publicApiRequest<T = any>(
+  path: string,
+  method: RequestMethod = "GET",
+  body?: unknown
+) {
+  return request<T>(path, { method, body, requireAuth: false });
+}
+
+// Supports BOTH call styles:
+// 1) optionalAuthApiRequest(path, "POST", body)
+// 2) optionalAuthApiRequest(path, token, { method, body, timeoutMs })
+export function optionalAuthApiRequest<T = any>(
+  path: string,
+  arg2?: string,
+  arg3?: unknown
+) {
+  if (isRequestMethod(arg2)) {
+    return request<T>(path, {
+      method: arg2,
+      body: arg3,
+      requireAuth: Boolean(accessToken),
+    });
+  }
+
+  const token = arg2 ?? accessToken;
+  const options = (arg3 ?? {}) as {
+    method?: RequestMethod;
+    body?: unknown;
+    timeoutMs?: number;
+  };
+
+  return request<T>(path, {
+    method: options.method ?? "GET",
+    body: options.body,
+    timeoutMs: options.timeoutMs ?? 30000,
+    requireAuth: Boolean(token),
+    tokenOverride: token,
+  });
+}
+
+export function formApiRequest<T = any>(
+  path: string,
+  method: RequestMethod = "POST",
+  formData?: FormData
+) {
+  return request<T>(path, {
+    method,
+    body: formData,
+    requireAuth: true,
+    isFormData: true,
+  });
+}
+
+// Supports existing usage:
+// optionalAuthFormRequest(path, formData, token?, timeoutMs?)
+export function optionalAuthFormRequest<T = any>(
+  path: string,
+  formData?: FormData,
+  token?: string | null,
+  timeoutMs = 30000
+) {
+  return request<T>(path, {
+    method: "POST",
+    body: formData,
+    requireAuth: Boolean(token ?? accessToken),
+    tokenOverride: token ?? accessToken,
+    isFormData: true,
+    timeoutMs,
+  });
 }

@@ -1,5 +1,4 @@
 import { router } from "expo-router";
-import { Text } from "react-native";
 import { ListScreen } from "@/src/components/layout/ListScreen";
 import { EmptyState } from "@/src/components/ui/EmptyState";
 import { JobStatusCard } from "@/src/components/cards/JobStatusCard";

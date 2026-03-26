@@ -30,11 +30,12 @@ export default function ExportCenterScreen() {
     <AppScreen>
       <Text style={{ fontSize: 30, fontWeight: '800', color: '#FFFFFF' }}>Export center</Text>
       <Text style={{ fontSize: 16, lineHeight: 24, color: '#96A7DE' }}>
-        Save the latest tailored package directly to the device. In live mode, backend-generated DOCX and PDF files are downloaded first and then handed to the iPhone share sheet.
+        Recruiter-grade themes, ATS-safe layouts, and a calmer final review. Save the latest tailored package directly to your device when DOCX or PDF files are ready.
       </Text>
 
       <AppCard>
         <Text style={{ fontSize: 18, fontWeight: '700', color: '#FFFFFF' }}>Full package</Text>
+        <Text style={{ marginTop: 8, color: '#C8D3F5', lineHeight: 22 }}>Save the complete package with the tailored resume, cover letter, recruiter email, and exported files.</Text>
         <View style={{ marginTop: 12, gap: 10 }}>
           <AppButton
             label={savingLabel === '__full__' ? 'Saving full package...' : 'Save full tailored package'}
@@ -46,6 +47,7 @@ export default function ExportCenterScreen() {
 
       <AppCard>
         <Text style={{ fontSize: 18, fontWeight: '700', color: '#FFFFFF' }}>Generated files</Text>
+        <Text style={{ marginTop: 8, color: '#C8D3F5', lineHeight: 22 }}>Download individual DOCX or PDF files when they are available for this package.</Text>
         <View style={{ marginTop: 12, gap: 10 }}>
           {artifacts.map((file) => (
             <AppButton
@@ -56,7 +58,7 @@ export default function ExportCenterScreen() {
               disabled={!data || Boolean(savingLabel)}
             />
           ))}
-          {!artifacts.length ? <Text style={{ color: '#6B7280' }}>Generate the package first, then save the files here.</Text> : null}
+          {!artifacts.length ? <Text style={{ color: '#C8D3F5', lineHeight: 22 }}>Generate the package first, then save the files here.</Text> : null}
         </View>
       </AppCard>
     </AppScreen>

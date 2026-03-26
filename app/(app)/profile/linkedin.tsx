@@ -45,7 +45,7 @@ export default function LinkedInScreen() {
     <AppScreen>
       <Text style={{ fontSize: 30, fontWeight: '800', color: '#FFFFFF' }}>LinkedIn optimizer</Text>
       <Text style={{ fontSize: 16, lineHeight: 24, color: '#96A7DE' }}>
-        In live mode this can optimize your LinkedIn headline and About section using your attached resume text plus a pasted description or a real job posting link. If you add a link, JobNova will try to extract the posting text automatically.
+        Optimize your LinkedIn headline and About section using your resume text plus a pasted description or a real job posting link. If you add a link, JobNova will try to extract the posting text automatically.
       </Text>
       <AppCard>
         <View style={{ gap: 14 }}>

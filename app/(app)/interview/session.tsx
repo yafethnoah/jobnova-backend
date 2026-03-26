@@ -46,7 +46,7 @@ export default function InterviewSessionScreen() {
       const isLast = questionIndex + 1 >= totalQuestions;
       if (isLast) {
         const average = Math.round(next.reduce((sum, item) => sum + item.clarity + item.structure + item.relevance, 0) / (next.length * 3));
-        const history = (await getJson<Array<{ role: string; completedAt: string; average: number }>>(INTERVIEW_HISTORY_CACHE_KEY)) ?? [];
+        const history = (await getJson<{ role: string; completedAt: string; average: number }[]>(INTERVIEW_HISTORY_CACHE_KEY)) ?? [];
         history.unshift({ role: role.trim(), completedAt: new Date().toISOString(), average });
         await saveJson(INTERVIEW_HISTORY_CACHE_KEY, history.slice(0, 20));
         router.push({

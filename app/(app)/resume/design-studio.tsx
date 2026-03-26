@@ -9,12 +9,12 @@ import { coverLetterTemplates, resumeTemplates } from '@/src/features/resume/res
 import type { DocumentTemplate, JobReadyPackage, LayoutMode, ResumeThemeId } from '@/src/features/resume/jobReady.types';
 import { saveJson } from '@/src/lib/localCache';
 
-const layoutModes: Array<{ id: LayoutMode; name: string; blurb: string }> = [
+const layoutModes: { id: LayoutMode; name: string; blurb: string }[] = [
   { id: 'one-page', name: 'True one-page ATS layout', blurb: 'Tighter spacing and stricter section density for concise direct-fit applications.' },
   { id: 'two-page', name: 'True two-page ATS layout', blurb: 'More breathing room for deeper experience, leadership context, and selected detail.' }
 ];
 
-const resumeThemes: Array<{ id: ResumeThemeId; name: string; blurb: string }> = [
+const resumeThemes: { id: ResumeThemeId; name: string; blurb: string }[] = [
   { id: 'modern-minimal', name: 'Modern Minimal', blurb: 'Sleek, contemporary, clean, and restrained.' },
   { id: 'classic-canadian-professional', name: 'Classic Canadian Professional', blurb: 'Conservative, trusted, recruiter-friendly Canadian business style.' },
   { id: 'executive-clean', name: 'Executive Clean', blurb: 'Sharper hierarchy for leadership and senior-level positioning.' },
@@ -68,7 +68,7 @@ export default function DesignStudioScreen() {
   );
 }
 
-function SelectionSection({ title, items, selectedId, onSelect }: { title: string; items: Array<{ id: string; name: string; blurb: string }>; selectedId: string; onSelect: (value: any) => void }) {
+function SelectionSection({ title, items, selectedId, onSelect }: { title: string; items: { id: string; name: string; blurb: string }[]; selectedId: string; onSelect: (value: any) => void }) {
   return (
     <View style={{ gap: 12 }}>
       <Text style={{ fontSize: 20, fontWeight: '700', color: '#FFFFFF' }}>{title}</Text>

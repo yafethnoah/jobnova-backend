@@ -52,7 +52,7 @@ export default function ResumeRewriteScreen() {
     mutationFn: () => resumeApi.rewrite(accessToken, { resumeText: resumeText.trim(), targetRole: targetRole.trim() || undefined, jobDescription: jobDescription.trim() || undefined, jobPostingUrl: jobPostingUrl.trim() || undefined, uploadedFileName: uploadedFileName || undefined }),
     onSuccess: async (data) => {
       await saveJson(RESUME_REWRITE_CACHE_KEY, data);
-      const existing = (await getJson<Array<{ targetRole?: string; at: string }>>(RESUME_HISTORY_CACHE_KEY)) ?? [];
+      const existing = (await getJson<{ targetRole?: string; at: string }[]>(RESUME_HISTORY_CACHE_KEY)) ?? [];
       existing.unshift({ targetRole: targetRole.trim() || undefined, at: new Date().toISOString() });
       await saveJson(RESUME_HISTORY_CACHE_KEY, existing.slice(0, 20));
     }
@@ -69,7 +69,7 @@ export default function ResumeRewriteScreen() {
   return (
     <AppScreen>
       <Text style={{ fontSize: 30, fontWeight: '800', color: '#FFFFFF' }}>Full tailored rewrite</Text>
-      <Text style={{ fontSize: 16, lineHeight: 24, color: '#96A7DE' }}>In live mode the backend can extract text from DOCX and PDF, then generate a full tailored resume from either pasted job text or a real job posting link. If you provide both, it will merge the live posting with your extra notes.</Text>
+      <Text style={{ fontSize: 16, lineHeight: 24, color: '#96A7DE' }}>Use your resume text with a pasted job description or job link to generate a stronger tailored version. When both are available, JobNova combines the role details with your extra notes for a more targeted rewrite.</Text>
       <AppCard>
         <View style={{ gap: 16 }}>
           <AppButton label={uploadMutation.isPending ? 'Uploading...' : uploadedFileName ? `Attached: ${uploadedFileName}` : 'Attach resume file'} variant="secondary" onPress={() => void handlePickDocument()} />

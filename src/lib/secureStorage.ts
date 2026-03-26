@@ -1,23 +1,15 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const TOKEN_KEY = "jobnova_token";
+const ACCESS_TOKEN_KEY = "jobnova_access_token";
 
-export async function saveToken(token: string) {
-  await AsyncStorage.setItem(TOKEN_KEY, token);
+export async function saveAccessToken(token: string): Promise<void> {
+  await AsyncStorage.setItem(ACCESS_TOKEN_KEY, token);
 }
 
-export async function getToken() {
-  return await AsyncStorage.getItem(TOKEN_KEY);
+export async function getAccessToken(): Promise<string | null> {
+  return await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
 }
 
-export async function removeToken() {
-  await AsyncStorage.removeItem(TOKEN_KEY);
+export async function clearAccessToken(): Promise<void> {
+  await AsyncStorage.removeItem(ACCESS_TOKEN_KEY);
 }
-
-/**
- * Backward-compatible aliases used elsewhere in the app.
- * Keep these so older files do not break.
- */
-export const saveAccessToken = saveToken;
-export const getAccessToken = getToken;
-export const clearAccessToken = removeToken;

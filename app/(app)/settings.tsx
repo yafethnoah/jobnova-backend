@@ -8,10 +8,12 @@ import { AppInput } from '@/src/components/ui/AppInput';
 import { AppScreen } from '@/src/components/ui/AppScreen';
 import { ErrorState } from '@/src/components/ui/ErrorState';
 import { LoadingView } from '@/src/components/ui/LoadingView';
+import { StatusChip } from '@/src/components/ui/StatusChip';
 import { profileApi } from '@/src/api/profile';
 import { useAuth } from '@/src/features/auth/useAuth';
 import { useProfile } from '@/src/hooks/useProfile';
 import { env } from '@/src/lib/env';
+import { colors } from '@/src/constants/colors';
 
 export default function SettingsScreen() {
   const { accessToken, signOut, user } = useAuth();
@@ -49,58 +51,66 @@ export default function SettingsScreen() {
     router.replace('/(public)/welcome');
   }
 
-  if (profileQuery.isLoading) return <LoadingView label="Loading settings..." />;
+  if (profileQuery.isLoading) return <LoadingView label="Loading account..." />;
   if (profileQuery.isError) {
     return (
       <AppScreen>
-        <ErrorState title="Could not load settings" message={profileQuery.error instanceof Error ? profileQuery.error.message : 'Unknown error'} />
+        <ErrorState title="Could not load account" message={profileQuery.error instanceof Error ? profileQuery.error.message : 'Unknown error'} />
       </AppScreen>
     );
   }
 
   return (
     <AppScreen>
-      <Text style={{ fontSize: 30, fontWeight: '800', color: '#FFFFFF' }}>Settings</Text>
-      <Text style={{ color: '#C8D3F5', lineHeight: 22 }}>
-        Keep your account details tidy, manage your subscription plan privately inside the app, and sign out safely from here.
+      <Text style={{ fontSize: 30, fontWeight: '800', color: colors.text }}>Account</Text>
+      <Text style={{ color: colors.muted, lineHeight: 22 }}>
+        Manage your profile, saved work, subscription, and preferences from one clean place.
       </Text>
 
-      <AppCard>
-        <View style={{ gap: 8 }}>
-          <Text style={{ fontSize: 18, fontWeight: '700', color: '#FFFFFF' }}>Account</Text>
-          <Text style={{ color: '#C8D3F5' }}>Signed in as: {profileQuery.data?.email ?? user?.email ?? 'Unknown user'}</Text>
-          <Text style={{ color: '#C8D3F5' }}>Onboarding: {user?.onboardingCompleted ? 'Completed' : 'Pending'}</Text>
-        </View>
-      </AppCard>
 
       <AppCard>
-        <View style={{ gap: 16 }}>
-          <Text style={{ fontSize: 18, fontWeight: '700', color: '#FFFFFF' }}>Profile details</Text>
+        <View style={{ gap: 10 }}>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text }}>Profile</Text>
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+            <StatusChip label={profileQuery.data?.email ?? user?.email ?? 'Signed in'} tone="neutral" />
+            <StatusChip label={user?.onboardingCompleted ? 'Onboarding complete' : 'Onboarding pending'} tone={user?.onboardingCompleted ? 'success' : 'warning'} />
+          </View>
           <AppInput label="Full name" value={fullName} onChangeText={setFullName} placeholder="Your full name" autoCapitalize="words" />
           <AppInput label="Target role" value={targetRole} onChangeText={setTargetRole} placeholder="Example: HR Coordinator" autoCapitalize="words" />
           <AppInput label="Location" value={location} onChangeText={setLocation} placeholder="Example: Mississauga, ON" autoCapitalize="words" />
           <AppInput label="Professional summary" value={summary} onChangeText={setSummary} placeholder="Write a short profile summary" multiline autoCapitalize="sentences" />
-          {saveMutation.isError ? <Text style={{ color: '#F87171' }}>{saveMutation.error instanceof Error ? saveMutation.error.message : 'Could not save profile changes.'}</Text> : null}
-          {saveMutation.isSuccess ? <Text style={{ color: '#34D399' }}>Profile saved successfully.</Text> : null}
+          {saveMutation.isError ? <Text style={{ color: colors.danger }}>{saveMutation.error instanceof Error ? saveMutation.error.message : 'Could not save profile changes.'}</Text> : null}
+          {saveMutation.isSuccess ? <Text style={{ color: colors.success }}>Profile saved successfully.</Text> : null}
           <AppButton label={saveMutation.isPending ? 'Saving...' : 'Save profile'} onPress={() => saveMutation.mutate()} disabled={saveMutation.isPending} />
         </View>
       </AppCard>
 
       <AppCard>
         <View style={{ gap: 10 }}>
-          <Text style={{ fontSize: 18, fontWeight: '700', color: '#FFFFFF' }}>Subscription</Text>
-          <Text style={{ color: '#C8D3F5', lineHeight: 22 }}>Your plan choices stay inside the app. Product identifiers are hidden from the public UI.</Text>
-          <Text style={{ color: '#C8D3F5' }}>Weekly Pro • {env.subscriptionPriceWeekly || '$1.99/week'}</Text>
-          <Text style={{ color: '#C8D3F5' }}>Monthly Pro • {env.subscriptionPriceMonthly || '$9.99/month'}</Text>
-          <Text style={{ color: '#C8D3F5' }}>Annual Pro • {env.subscriptionPriceAnnual || '$59.99/year'}</Text>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text }}>Resume library</Text>
+          <Text style={{ color: colors.muted, lineHeight: 22 }}>Open your saved export library, revisit package outputs, or continue LinkedIn optimization.</Text>
+          <AppButton label="Open saved export library" variant="secondary" onPress={() => router.push('/(app)/resume/export-library')} />
+          <AppButton label="Optimize LinkedIn" variant="secondary" onPress={() => router.push('/(app)/profile/linkedin')} />
+        </View>
+      </AppCard>
+
+      <AppCard>
+        <View style={{ gap: 10 }}>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text }}>Subscription</Text>
+          <Text style={{ color: colors.muted, lineHeight: 22 }}>Plan choices stay inside the app and product identifiers stay out of the public interface.</Text>
+          <Text style={{ color: colors.text }}>Weekly Pro • {env.subscriptionPriceWeekly || '$1.99/week'}</Text>
+          <Text style={{ color: colors.text }}>Monthly Pro • {env.subscriptionPriceMonthly || '$9.99/month'}</Text>
+          <Text style={{ color: colors.text }}>Annual Pro • {env.subscriptionPriceAnnual || '$59.99/year'}</Text>
           <AppButton label="Open subscription plans" variant="secondary" onPress={() => router.push('/(app)/subscriptions')} />
         </View>
       </AppCard>
 
       <AppCard>
-        <View style={{ gap: 12 }}>
-          <Text style={{ fontSize: 18, fontWeight: '700', color: '#FFFFFF' }}>Session</Text>
-          <AppButton label="Optimize LinkedIn" variant="secondary" onPress={() => router.push('/(app)/profile/linkedin')} />
+        <View style={{ gap: 10 }}>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text }}>Preferences</Text>
+          <Text style={{ color: colors.muted, lineHeight: 22 }}>Use resources, update your path, or sign out safely from here.</Text>
+          <AppButton label="Open resources" variant="secondary" onPress={() => router.push('/(app)/resources')} />
+          <AppButton label="Revisit career path" variant="secondary" onPress={() => router.push('/(app)/career-path')} />
           <AppButton label="Sign out" onPress={handleSignOut} />
         </View>
       </AppCard>

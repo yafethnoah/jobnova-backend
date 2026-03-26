@@ -33,7 +33,6 @@ function buildCheckpoints(item: any) {
   ];
 }
 
-
 function stringList(value: unknown): string[] {
   if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
   if (typeof value === 'string') return value.split(/\r?\n|,|•/).map((item) => item.trim()).filter(Boolean);
@@ -66,7 +65,7 @@ export default function PackageReviewScreen() {
   });
 
   const item = packageQuery.data;
-  const actions = useMemo(() => item?.package?.followUpPlan?.actions || [], [item]);
+  const actions = useMemo<string[]>(() => stringList(item?.package?.followUpPlan?.actions), [item]);
   const timeline = useMemo(() => buildTimeline(item), [item]);
   const checkpoints = useMemo(() => buildCheckpoints(item), [item]);
 
@@ -134,7 +133,7 @@ export default function PackageReviewScreen() {
 
       <AppCard>
         <Text style={{ fontSize: 18, fontWeight: "800", color: colors.text }}>Follow-up plan</Text>
-        {actions.length ? actions.map((action, index) => (
+        {actions.length ? actions.map((action: string, index: number) => (
           <Text key={`${index}-${action}`} style={{ marginTop: 8, color: colors.muted }}>• {action}</Text>
         )) : <Text style={{ marginTop: 8, color: colors.muted }}>No follow-up plan available.</Text>}
       </AppCard>

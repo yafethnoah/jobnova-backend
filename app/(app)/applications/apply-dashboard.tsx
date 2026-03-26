@@ -44,27 +44,30 @@ export default function ApplyDashboardScreen() {
       <AppCard>
         <Text style={{ fontSize: 18, fontWeight: "800", color: colors.text }}>Recent package orchestration</Text>
         <View style={{ marginTop: 12, gap: 12 }}>
-          {items.length ? items.slice(0, 6).map((item) => (
-            <View key={item.id} style={{ gap: 8, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 12 }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.text, fontWeight: "800" }}>{item.targetRole || "Role"}</Text>
-                  <Text style={{ marginTop: 4, color: colors.muted }}>{item.companyName || "Company"}</Text>
+          {items.length ? items.slice(0, 6).map((item) => {
+            const status = item.status ?? "draft";
+            return (
+              <View key={item.id} style={{ gap: 8, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 12 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontWeight: "800" }}>{item.targetRole || "Role"}</Text>
+                    <Text style={{ marginTop: 4, color: colors.muted }}>{item.companyName || "Company"}</Text>
+                  </View>
+                  <StatusChip label={status} tone={toneForPackage(status)} />
                 </View>
-                <StatusChip label={item.status} tone={toneForPackage(item.status)} />
+                <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                  {item.linkedResumeVersionId ? <StatusChip label="resume linked" tone="primary" /> : <StatusChip label="resume pending" tone="warning" />}
+                  {item.linkedExportJobId ? <StatusChip label="export linked" tone="primary" /> : <StatusChip label="export pending" tone="warning" />}
+                  {item.approvedAt ? <StatusChip label="human approved" tone="success" /> : <StatusChip label="human review needed" tone="warning" />}
+                </View>
+                <AppButton
+                  label="Open package"
+                  variant="secondary"
+                  onPress={() => router.push({ pathname: "/(app)/applications/package-review", params: { packageId: item.id } })}
+                />
               </View>
-              <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-                {item.linkedResumeVersionId ? <StatusChip label="resume linked" tone="primary" /> : <StatusChip label="resume pending" tone="warning" />}
-                {item.linkedExportJobId ? <StatusChip label="export linked" tone="primary" /> : <StatusChip label="export pending" tone="warning" />}
-                {item.approvedAt ? <StatusChip label="human approved" tone="success" /> : <StatusChip label="human review needed" tone="warning" />}
-              </View>
-              <AppButton
-                label="Open package"
-                variant="secondary"
-                onPress={() => router.push({ pathname: "/(app)/applications/package-review", params: { packageId: item.id } })}
-              />
-            </View>
-          )) : <Text style={{ color: colors.muted }}>No package records yet. Generate an application package first.</Text>}
+            );
+          }) : <Text style={{ color: colors.muted }}>No package records yet. Generate an application package first.</Text>}
         </View>
       </AppCard>
     </AppScreen>

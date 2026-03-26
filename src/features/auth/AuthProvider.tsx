@@ -6,128 +6,219 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { setAccessToken as setApiAccessToken } from "@/src/api/client";
 import { authApi } from "@/src/api/auth";
-import { env } from "@/src/lib/env";
-import { mockAuthApi } from "@/src/mocks/mockAuthApi";
 import {
-  clearAccessToken,
-  getAccessToken,
   saveAccessToken,
+  getAccessToken,
+  clearAccessToken,
 } from "@/src/lib/secureStorage";
-import type {
-  AuthContextValue,
-  AuthStatus,
-  SessionUser,
-  SignUpPayload,
-} from "@/src/features/auth/auth.types";
+
+type AuthStatus = "loading" | "signed_in" | "signed_out";
+
+type SessionUser = {
+  id: string;
+  email: string;
+  fullName?: string;
+  onboardingCompleted?: boolean;
+  onboarding?: Record<string, unknown>;
+  preferences?: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type SignUpPayload = {
+  fullName: string;
+  email: string;
+  password: string;
+};
+
+type AuthContextValue = {
+  status: AuthStatus;
+  accessToken: string | null;
+  user: SessionUser | null;
+  onboardingCompleted: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (payload: SignUpPayload) => Promise<void>;
+  signOut: () => Promise<void>;
+  refreshMe: () => Promise<void>;
+  markOnboardingComplete: () => void;
+  signInLocal: (email: string, password: string) => Promise<void>;
+  registerLocal: (fullName: string, email: string, password: string) => Promise<void>;
+};
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+function normalizeUser(payload: unknown): SessionUser | null {
+  if (!payload || typeof payload !== "object") return null;
+
+  const raw = payload as Record<string, unknown>;
+
+  const id = raw.id ? String(raw.id) : "";
+  const email = raw.email ? String(raw.email) : "";
+
+  if (!id || !email) return null;
+
+  return {
+    id,
+    email,
+    fullName: raw.fullName ? String(raw.fullName) : undefined,
+    onboardingCompleted: Boolean(raw.onboardingCompleted),
+    onboarding:
+      raw.onboarding && typeof raw.onboarding === "object"
+        ? (raw.onboarding as Record<string, unknown>)
+        : undefined,
+    preferences:
+      raw.preferences && typeof raw.preferences === "object"
+        ? (raw.preferences as Record<string, unknown>)
+        : undefined,
+    createdAt: raw.createdAt ? String(raw.createdAt) : undefined,
+    updatedAt: raw.updatedAt ? String(raw.updatedAt) : undefined,
+  };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("loading");
-  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [accessToken, setAccessTokenState] = useState<string | null>(null);
   const [user, setUser] = useState<SessionUser | null>(null);
 
-  const resetAuth = useCallback(async () => {
+  const applySignedOutState = useCallback(async () => {
     await clearAccessToken();
-    setAccessToken(null);
+    setApiAccessToken(null);
+    setAccessTokenState(null);
     setUser(null);
     setStatus("signed_out");
   }, []);
 
-  const bootstrap = useCallback(async () => {
-    try {
-      const token = await getAccessToken();
+  const applySignedInState = useCallback(
+    async (token: string, nextUser: SessionUser) => {
+      await saveAccessToken(token);
+      setApiAccessToken(token);
+      setAccessTokenState(token);
+      setUser(nextUser);
+      setStatus("signed_in");
+    },
+    []
+  );
 
-      if (!token) {
-        setStatus("signed_out");
+  const refreshMe = useCallback(async () => {
+    try {
+      const payload = await authApi.me();
+
+      if ((payload as any)?.error === "unauthorized") {
+        await applySignedOutState();
         return;
       }
 
-      const me = await authApi.me(token);
+      const resolvedUser = normalizeUser(payload?.user ?? payload);
 
-      setAccessToken(token);
-      setUser(me);
+      if (!resolvedUser) {
+        throw new Error("Could not load current user.");
+      }
+
+      setUser(resolvedUser);
       setStatus("signed_in");
     } catch (error) {
-      console.log("[AUTH] bootstrap failed:", error);
-      await resetAuth();
+      console.log("[AUTH] refreshMe failed:", error);
+      await applySignedOutState();
     }
-  }, [resetAuth]);
+  }, [applySignedOutState]);
 
   useEffect(() => {
+    const bootstrap = async () => {
+      try {
+        const token = await getAccessToken();
+
+        if (!token) {
+          setApiAccessToken(null);
+          setStatus("signed_out");
+          return;
+        }
+
+        setApiAccessToken(token);
+        setAccessTokenState(token);
+
+        const payload = await authApi.me();
+
+        if ((payload as any)?.error === "unauthorized") {
+          await applySignedOutState();
+          return;
+        }
+
+        const resolvedUser = normalizeUser(payload?.user ?? payload);
+
+        if (!resolvedUser) {
+          throw new Error("User not found.");
+        }
+
+        setUser(resolvedUser);
+        setStatus("signed_in");
+      } catch (error) {
+        console.log("[AUTH] bootstrap failed:", error);
+        await applySignedOutState();
+      }
+    };
+
     void bootstrap();
-  }, [bootstrap]);
+  }, [applySignedOutState]);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    const response = await authApi.signIn({ email, password });
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      const payload = await authApi.login({ email, password });
 
-    if (!response.accessToken || !response.user) {
-      throw new Error(response.message || "Sign in failed.");
-    }
+      const token = payload.accessToken ?? payload.token;
+      const resolvedUser = normalizeUser(payload.user);
 
-    await saveAccessToken(response.accessToken);
-    setAccessToken(response.accessToken);
-    setUser(response.user);
-    setStatus("signed_in");
-  }, []);
+      if (!token || !resolvedUser) {
+        throw new Error(payload.message || "Sign in failed.");
+      }
 
-  const signUp = useCallback(async (payload: SignUpPayload) => {
-    const response = await authApi.signUp(payload);
+      await applySignedInState(token, resolvedUser);
+    },
+    [applySignedInState]
+  );
 
-    if (!response.accessToken || !response.user) {
-      throw new Error(
-        response.message || "Account created. Please sign in to continue."
-      );
-    }
+  const signUp = useCallback(
+    async (payload: SignUpPayload) => {
+      const response = await authApi.register(payload);
 
-    await saveAccessToken(response.accessToken);
-    setAccessToken(response.accessToken);
-    setUser(response.user);
-    setStatus("signed_in");
-  }, []);
+      const token = response.accessToken ?? response.token;
+      const resolvedUser = normalizeUser(response.user);
+
+      if (!token || !resolvedUser) {
+        throw new Error(response.message || "Sign up failed.");
+      }
+
+      await applySignedInState(token, resolvedUser);
+    },
+    [applySignedInState]
+  );
 
   const signOut = useCallback(async () => {
-    await resetAuth();
-  }, [resetAuth]);
-
-  const refreshMe = useCallback(async () => {
-    if (!accessToken) return;
-
-    try {
-      const me = await authApi.me(accessToken);
-      setUser(me);
-    } catch (error) {
-      console.log("[AUTH] refreshMe failed:", error);
-      await resetAuth();
-    }
-  }, [accessToken, resetAuth]);
+    await applySignedOutState();
+  }, [applySignedOutState]);
 
   const markOnboardingComplete = useCallback(() => {
     setUser((prev) => {
       if (!prev) return prev;
-
-      const updated = {
+      return {
         ...prev,
         onboardingCompleted: true,
       };
-
-      if (env.useMockApi) {
-        void mockAuthApi.updateUser({ onboardingCompleted: true });
-      }
-
-      return updated;
     });
   }, []);
 
   const signInLocal = useCallback(
-    async (email: string, password: string) => signIn(email, password),
+    async (email: string, password: string) => {
+      await signIn(email, password);
+    },
     [signIn]
   );
 
   const registerLocal = useCallback(
-    async (fullName: string, email: string, password: string) =>
-      signUp({ fullName, email, password }),
+    async (fullName: string, email: string, password: string) => {
+      await signUp({ fullName, email, password });
+    },
     [signUp]
   );
 

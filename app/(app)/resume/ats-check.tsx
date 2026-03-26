@@ -19,7 +19,7 @@ import { ATS_CHECK_CACHE_KEY, JOB_READY_PACKAGE_CACHE_KEY, LATEST_RESUME_FILE_NA
 import type { AtsCheckResponse, ResumeUploadResponse } from '@/src/features/resume/resume.types';
 import type { ExportFormat } from '@/src/features/resume/jobReady.types';
 
-const resumeDownloadFormats: Array<{ value: ExportFormat; label: string }> = [
+const resumeDownloadFormats: { value: ExportFormat; label: string }[] = [
   { value: 'docx', label: 'Resume DOCX' },
   { value: 'pdf', label: 'Resume PDF' },
   { value: 'both', label: 'Resume DOCX + PDF' }
@@ -45,7 +45,7 @@ export default function AtsCheckScreen() {
     if (cachedResumeText && !resumeText.trim()) setResumeText(cachedResumeText);
     if (cachedResumeFileName && !uploadedFileName.trim()) setUploadedFileName(cachedResumeFileName);
     if (cachedResumeUpload?.message && !uploadMessage) setUploadMessage(cachedResumeUpload.message);
-  }, [cachedResumeText, cachedResumeFileName, cachedResumeUpload?.message]);
+  }, [cachedResumeFileName, cachedResumeText, cachedResumeUpload?.message, resumeText, uploadMessage, uploadedFileName]);
 
   useEffect(() => {
     if (resumeText.trim()) return;
@@ -132,7 +132,7 @@ export default function AtsCheckScreen() {
       }),
     onSuccess: async (data) => {
       await saveJson(ATS_CHECK_CACHE_KEY, data);
-      const existing = (await getJson<Array<{ targetRole?: string; score?: number; at: string }>>(RESUME_HISTORY_CACHE_KEY)) ?? [];
+      const existing = (await getJson<{ targetRole?: string; score?: number; at: string }[]>(RESUME_HISTORY_CACHE_KEY)) ?? [];
       existing.unshift({ targetRole: targetRole.trim() || undefined, score: data.score, at: new Date().toISOString() });
       await saveJson(RESUME_HISTORY_CACHE_KEY, existing.slice(0, 20));
     }
@@ -154,7 +154,7 @@ export default function AtsCheckScreen() {
     <AppScreen>
       <Text style={{ fontSize: 30, fontWeight: '800', color: '#FFFFFF' }}>ATS comparison</Text>
       <Text style={{ fontSize: 16, lineHeight: 24, color: '#96A7DE' }}>
-        In live mode this uploads the real file to your backend, extracts text when possible, and can analyze either pasted job text or a real job posting link. If you provide a link, JobNova will try to extract the posting automatically and merge it with any notes you paste.
+        Upload your real resume, paste the job text or add a job link, and compare both sides in one guided flow. If you add a link, JobNova will try to extract the posting automatically and combine it with any notes you include.
       </Text>
       <Text style={{ fontSize: 13, lineHeight: 20, color: '#C8D3F5' }}>
         Tip: sign in if you want your uploads and ATS results saved to your account. Guest extraction can still run when the backend allows optional access.

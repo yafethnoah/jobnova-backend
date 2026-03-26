@@ -67,7 +67,7 @@ function normalizeExportArtifacts(value: unknown): ExportArtifact[] {
     .filter(Boolean) as ExportArtifact[];
 }
 
-const exportFormats: Array<{ value: ExportFormat; label: string }> = [
+const exportFormats: { value: ExportFormat; label: string }[] = [
   { value: 'docx', label: 'Word only' },
   { value: 'pdf', label: 'PDF only' },
   { value: 'both', label: 'Word + PDF' }
@@ -99,7 +99,7 @@ export default function JobReadyScreen() {
   const [selectedCoverLetterExportFormat, setSelectedCoverLetterExportFormat] = useState<ExportFormat>('both');
   const [selectedRecruiterEmailExportFormat, setSelectedRecruiterEmailExportFormat] = useState<ExportFormat>('both');
   const [selectedResumeThemeId, setSelectedResumeThemeId] = useState<ResumeThemeId>('classic-canadian-professional');
-  const [selectedLayoutMode, setSelectedLayoutMode] = useState<LayoutMode>('two-page');
+  const [selectedLayoutMode, setSelectedLayoutMode] = useState<LayoutMode>('one-page');
 
   useEffect(() => {
     if (uploadedResume?.extractedText?.trim() && !resumeText.trim()) {
@@ -176,7 +176,7 @@ export default function JobReadyScreen() {
   const mutation = useMutation({
     mutationFn: () => {
       const payload = {
-        fullName: String(user?.fullName || user?.name || 'Candidate').trim(),
+        fullName: String(user?.fullName || 'Candidate').trim(),
         targetRole: targetRole.trim(),
         companyName: companyName.trim(),
         jobDescription: jobDescription.trim(),
@@ -218,8 +218,7 @@ export default function JobReadyScreen() {
       <Text style={{ fontSize: 30, fontWeight: '800', color: '#FFFFFF' }}>Job-ready package</Text>
 
       <Text style={{ fontSize: 16, lineHeight: 24, color: '#B8C4E4' }}>
-        Generate a recruiter-ready package with a tailored resume, polished cover letter,
-        recruiter email, and files you can save directly to the phone through the share sheet.
+        Generate a recruiter-ready package with an ATS-safer tailored resume, polished cover letter, recruiter email, and downloadable files you can save directly to the phone through the share sheet.
       </Text>
 
       <AppCard>

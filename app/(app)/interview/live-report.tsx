@@ -26,7 +26,11 @@ export default function LiveInterviewReportScreen() {
     onSuccess: async (data) => saveJson(LIVE_INTERVIEW_REPORT_CACHE_KEY, data)
   });
 
-  useEffect(() => { mutation.mutate(); }, []);
+  const { mutate } = mutation;
+
+  useEffect(() => {
+    mutate();
+  }, [mutate]);
 
   if (mutation.isPending) return <LoadingView label="Generating written outcome report..." />;
   if (mutation.isError) return <AppScreen><ErrorState title="Could not generate report" message={mutation.error instanceof Error ? mutation.error.message : 'Unknown error'} /></AppScreen>;

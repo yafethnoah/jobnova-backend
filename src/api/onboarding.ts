@@ -1,11 +1,73 @@
 import { apiRequest } from "@/src/api/client";
-import { env } from "@/src/lib/env";
-import { mockOnboardingApi } from "@/src/mocks/mockOnboardingApi";
-import type { OnboardingAnswers } from "@/src/features/onboarding/onboarding.types";
-import type { CareerPathResult } from "@/src/features/career-path/careerPath.types";
+
+export type OnboardingAnswers = {
+  lifeStage: string;
+  profession: string;
+  yearsExperience?: string;
+  educationLevel?: string;
+  englishLevel?: string;
+  frenchLevel?: string;
+  hasCanadianExperience?: boolean;
+  targetGoal?: string;
+  urgencyLevel?: string;
+};
+
+type OnboardingResponse =
+  | OnboardingAnswers
+  | {
+      ok?: boolean;
+      user?: {
+        onboarding?: Partial<OnboardingAnswers>;
+      } | null;
+    };
+
+function normalizeAnswers(payload: OnboardingResponse): OnboardingAnswers {
+  const nested = (payload as { user?: { onboarding?: Partial<OnboardingAnswers> } })?.user
+    ?.onboarding;
+
+  const source =
+    nested && typeof nested === "object"
+      ? nested
+      : payload && typeof payload === "object"
+        ? (payload as Partial<OnboardingAnswers>)
+        : {};
+
+  return {
+    lifeStage: String(source.lifeStage || ""),
+    profession: String(source.profession || ""),
+    yearsExperience: source.yearsExperience ? String(source.yearsExperience) : "",
+    educationLevel: source.educationLevel ? String(source.educationLevel) : "",
+    englishLevel: source.englishLevel ? String(source.englishLevel) : "",
+    frenchLevel: source.frenchLevel ? String(source.frenchLevel) : "",
+    hasCanadianExperience: Boolean(source.hasCanadianExperience),
+    targetGoal: source.targetGoal ? String(source.targetGoal) : "",
+    urgencyLevel: source.urgencyLevel ? String(source.urgencyLevel) : "medium",
+  };
+}
 
 export const onboardingApi = {
-  saveAnswers(token: string, payload: Partial<OnboardingAnswers>) { return env.useMockApi ? mockOnboardingApi.saveAnswers(payload) : apiRequest<{ success: true }>("/users/onboarding", { method: "POST", token, body: payload }); },
-  getAnswers(token: string) { return env.useMockApi ? mockOnboardingApi.getAnswers() : apiRequest<Partial<OnboardingAnswers>>("/users/onboarding", { token }); },
-  generateCareerPath(token: string | null, payload: OnboardingAnswers & { resumeText?: string }) { return env.useMockApi ? mockOnboardingApi.generateCareerPath(payload) : apiRequest<CareerPathResult>("/career-path/generate", { method: "POST", token, body: payload }); }
+  async getAnswers(token: string) {
+    const response = await apiRequest<OnboardingResponse>("/users/onboarding", {
+      method: "GET",
+      token,
+    });
+
+    return normalizeAnswers(response);
+  },
+
+  async saveAnswers(token: string, payload: OnboardingAnswers) {
+    return apiRequest("/users/onboarding", {
+      method: "POST",
+      token,
+      body: payload,
+    });
+  },
+
+  async generateCareerPath(token: string, payload: OnboardingAnswers) {
+    return apiRequest("/career-path/generate", {
+      method: "POST",
+      token,
+      body: payload,
+    });
+  },
 };

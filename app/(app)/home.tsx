@@ -1,4 +1,4 @@
-import { Text, View, ScrollView } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { useProfile } from "@/src/hooks/useProfile";
 
 export default function HomeScreen() {
@@ -30,7 +30,7 @@ export default function HomeScreen() {
           marginBottom: 20,
         }}
       >
-        Welcome back{data?.fullName ? `, ${data.fullName}` : ""}.
+        Welcome back.
       </Text>
 
       <View
@@ -52,7 +52,11 @@ export default function HomeScreen() {
         </Text>
 
         <Text style={{ color: "#475569" }}>
-          {isLoading ? "Loading..." : "Your dashboard is ready."}
+          {isLoading
+            ? "Loading..."
+            : data?.fullName
+              ? `Your dashboard is ready, ${data.fullName}.`
+              : "Your dashboard is ready."}
         </Text>
       </View>
     </ScrollView>

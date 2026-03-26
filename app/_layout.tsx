@@ -2,6 +2,7 @@ import { Stack } from "expo-router";
 import { View, ActivityIndicator } from "react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuthContext } from "@/src/features/auth/AuthProvider";
+import { ToastProvider } from "@/src/features/feedback/ToastProvider";
 
 const queryClient = new QueryClient();
 
@@ -29,9 +30,11 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <RootNavigator />
-      </AuthProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <RootNavigator />
+        </AuthProvider>
+      </ToastProvider>
     </QueryClientProvider>
   );
 }

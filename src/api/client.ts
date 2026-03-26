@@ -214,63 +214,6 @@ async function apiRequestOnce<T>(
   return parsed;
 }
 
-async function apiFormRequestOnce<T>(
-  baseUrl: string,
-  path: string,
-  formData: FormData,
-  token?: string | null,
-  timeoutMs = 30000
-): Promise<T> {
-  const headers = sanitizeHeaders(
-    token ? { Authorization: `Bearer ${token}` } : undefined
-  );
-
-  const url = joinUrl(baseUrl, path);
-
-  console.log("[API REQUEST]", {
-    method: "POST",
-    url,
-    hasToken: Boolean(token),
-    formData: true,
-  });
-
-  const response = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers,
-      body: formData,
-    },
-    timeoutMs
-  );
-
-  const parsed = await parseResponse<T>(response);
-
-  console.log("[API RESPONSE]", {
-    url,
-    status: response.status,
-    ok: response.ok,
-    data: parsed,
-  });
-
-  return parsed;
-}
-
-function shouldRetryWithApiPrefix(
-  path: string,
-  error: unknown,
-  disableFallback?: boolean
-): boolean {
-  if (disableFallback) return false;
-  if (path.startsWith("/api/")) return false;
-  if (!(error instanceof ApiRequestError)) return false;
-  if (error.status !== 404) return false;
-
-  return /route was not found|cannot post|cannot get|request failed with status 404/i.test(
-    error.message
-  );
-}
-
 export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {}
@@ -282,83 +225,16 @@ export async function apiRequest<T>(
   try {
     return await apiRequestOnce<T>(env.apiBaseUrl, path, options);
   } catch (error) {
-    if (shouldRetryWithApiPrefix(path, error, options.disableApiPrefixFallback)) {
+    if (
+      !options.disableApiPrefixFallback &&
+      !(error instanceof ApiRequestError && error.status && error.status !== 404)
+    ) {
       return apiRequestOnce<T>(env.apiBaseUrl, prefixApiPath(path), {
         ...options,
         disableApiPrefixFallback: true,
       });
     }
 
-    throw error;
-  }
-}
-
-export async function apiFormRequest<T>(
-  path: string,
-  formData: FormData,
-  token?: string | null,
-  timeoutMs = 30000
-): Promise<T> {
-  if (!env.apiBaseUrl) {
-    throw new Error("EXPO_PUBLIC_API_BASE_URL is missing.");
-  }
-
-  try {
-    return await apiFormRequestOnce<T>(
-      env.apiBaseUrl,
-      path,
-      formData,
-      token || null,
-      timeoutMs
-    );
-  } catch (error) {
-    if (shouldRetryWithApiPrefix(path, error, false)) {
-      return apiFormRequestOnce<T>(
-        env.apiBaseUrl,
-        prefixApiPath(path),
-        formData,
-        token || null,
-        timeoutMs
-      );
-    }
-
-    throw error;
-  }
-}
-
-const isUnauthorizedError = (error: unknown) =>
-  (error instanceof ApiRequestError && error.status === 401) ||
-  /unauthorized|sign in again|401|token/i.test(
-    error instanceof Error ? error.message : String(error ?? "")
-  );
-
-export async function optionalAuthApiRequest<T>(
-  path: string,
-  token: string | null | undefined,
-  options: Omit<RequestOptions, "token"> = {}
-): Promise<T> {
-  try {
-    return await apiRequest<T>(path, { ...options, token: token || null });
-  } catch (error) {
-    if (token && isUnauthorizedError(error)) {
-      return apiRequest<T>(path, { ...options, token: null });
-    }
-    throw error;
-  }
-}
-
-export async function optionalAuthFormRequest<T>(
-  path: string,
-  formData: FormData,
-  token?: string | null,
-  timeoutMs = 30000
-): Promise<T> {
-  try {
-    return await apiFormRequest<T>(path, formData, token || null, timeoutMs);
-  } catch (error) {
-    if (token && isUnauthorizedError(error)) {
-      return apiFormRequest<T>(path, formData, null, timeoutMs);
-    }
     throw error;
   }
 }

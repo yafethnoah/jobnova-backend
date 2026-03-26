@@ -19,10 +19,11 @@ export default function AppLayout() {
         headerShown: false,
         tabBarActiveTintColor: "#4F46E5",
         tabBarInactiveTintColor: "#94A3B8",
+        tabBarShowLabel: true,
         tabBarStyle: {
-          height: 64,
-          paddingTop: 6,
-          paddingBottom: 8,
+          height: 72,
+          paddingTop: 8,
+          paddingBottom: 10,
           backgroundColor: "#FFFFFF",
           borderTopWidth: 1,
           borderTopColor: "#E2E8F0",
@@ -37,6 +38,7 @@ export default function AppLayout() {
         name="home"
         options={{
           title: "Home",
+          href: "/(app)/home",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
@@ -44,9 +46,10 @@ export default function AppLayout() {
       />
 
       <Tabs.Screen
-        name="path"
+        name="career-path"
         options={{
           title: "Path",
+          href: "/(app)/career-path",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="map-outline" size={size} color={color} />
           ),
@@ -54,9 +57,10 @@ export default function AppLayout() {
       />
 
       <Tabs.Screen
-        name="resume"
+        name="resume/index"
         options={{
           title: "Resume",
+          href: "/(app)/resume",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="document-text-outline" size={size} color={color} />
           ),
@@ -64,9 +68,10 @@ export default function AppLayout() {
       />
 
       <Tabs.Screen
-        name="tracker"
+        name="tracker/index"
         options={{
           title: "Tracker",
+          href: "/(app)/tracker",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="briefcase-outline" size={size} color={color} />
           ),
@@ -77,30 +82,21 @@ export default function AppLayout() {
         name="profile"
         options={{
           title: "Profile",
+          href: "/(app)/profile",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
           ),
         }}
       />
 
-      <Tabs.Screen
-        name="interview"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="resources"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="onboarding"
-        options={{
-          href: null,
-        }}
-      />
+      <Tabs.Screen name="resources" options={{ href: null }} />
+      <Tabs.Screen name="settings" options={{ href: null }} />
+      <Tabs.Screen name="subscriptions" options={{ href: null }} />
+      <Tabs.Screen name="applications/index" options={{ href: null }} />
+      <Tabs.Screen name="career-coach" options={{ href: null }} />
+      <Tabs.Screen name="growth/index" options={{ href: null }} />
+      <Tabs.Screen name="interview/index" options={{ href: null }} />
+      <Tabs.Screen name="jobs/index" options={{ href: null }} />
     </Tabs>
   );
 }

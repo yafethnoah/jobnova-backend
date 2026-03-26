@@ -1,4 +1,4 @@
-import { apiRequest } from "@/src/api/client";
+import { apiRequest, ApiRequestError } from "@/src/api/client";
 
 export type OnboardingAnswers = {
   lifeStage: string;
@@ -20,6 +20,18 @@ type OnboardingResponse =
         onboarding?: Partial<OnboardingAnswers>;
       } | null;
     };
+
+const EMPTY_ANSWERS: OnboardingAnswers = {
+  lifeStage: "",
+  profession: "",
+  yearsExperience: "",
+  educationLevel: "",
+  englishLevel: "",
+  frenchLevel: "",
+  hasCanadianExperience: false,
+  targetGoal: "",
+  urgencyLevel: "medium",
+};
 
 function normalizeAnswers(payload: OnboardingResponse): OnboardingAnswers {
   const nested = (payload as { user?: { onboarding?: Partial<OnboardingAnswers> } })?.user
@@ -46,13 +58,22 @@ function normalizeAnswers(payload: OnboardingResponse): OnboardingAnswers {
 }
 
 export const onboardingApi = {
-  async getAnswers(token: string) {
-    const response = await apiRequest<OnboardingResponse>("/users/onboarding", {
-      method: "GET",
-      token,
-    });
+  async getAnswers(token: string): Promise<OnboardingAnswers> {
+    try {
+      const response = await apiRequest<OnboardingResponse>("/users/onboarding", {
+        method: "GET",
+        token,
+        disableApiPrefixFallback: true,
+      });
 
-    return normalizeAnswers(response);
+      return normalizeAnswers(response);
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.status === 404) {
+        return EMPTY_ANSWERS;
+      }
+
+      throw error;
+    }
   },
 
   async saveAnswers(token: string, payload: OnboardingAnswers) {
@@ -60,6 +81,7 @@ export const onboardingApi = {
       method: "POST",
       token,
       body: payload,
+      disableApiPrefixFallback: true,
     });
   },
 
@@ -68,6 +90,7 @@ export const onboardingApi = {
       method: "POST",
       token,
       body: payload,
+      disableApiPrefixFallback: true,
     });
   },
 };

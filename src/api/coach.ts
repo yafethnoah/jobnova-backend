@@ -1,12 +1,30 @@
-import { env } from '@/src/lib/env';
-import { optionalAuthApiRequest } from '@/src/api/client';
-import { mockCoachApi } from '@/src/mocks/mockCoachApi';
-import type { CoachSessionPayload, CoachSessionResponse } from '@/src/features/coach/coach.types';
+import { apiRequest, ApiRequestError } from "@/src/api/client";
+
+export type CoachSessionPayload = {
+  topic?: string;
+  message?: string;
+  context?: Record<string, unknown>;
+};
 
 export const coachApi = {
-  createSession(token: string | null, payload: CoachSessionPayload) {
-    return env.useMockApi
-      ? mockCoachApi.createSession(payload)
-      : optionalAuthApiRequest<CoachSessionResponse>('/coach/session', token, { method: 'POST', body: payload, timeoutMs: 30000 });
-  }
+  async createSession(token: string, payload: CoachSessionPayload) {
+    try {
+      return await apiRequest("/coach/session", {
+        method: "POST",
+        token,
+        body: payload,
+        disableApiPrefixFallback: true,
+      });
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.status === 404) {
+        return {
+          ok: false,
+          fallback: true,
+          message: "Coach session route is not available yet.",
+        };
+      }
+
+      throw error;
+    }
+  },
 };

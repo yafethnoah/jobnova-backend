@@ -9,7 +9,7 @@ const QUESTION_BANK = [
   'Why should we hire you, and what would success look like in your first 90 days?'
 ];
 
-const sessions = new Map<string, { index: number; transcript: Array<{ speaker: 'coach' | 'user'; text: string }>; answers: string[] }>();
+const sessions = new Map<string, { index: number; transcript: { speaker: 'coach' | 'user'; text: string }[]; answers: string[] }>();
 
 export const mockLiveInterviewApi = {
   async start(_payload: VoiceInterviewSetup): Promise<{ sessionId: string; firstQuestion: string; totalQuestions: number }> {

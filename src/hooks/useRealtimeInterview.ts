@@ -1,19 +1,29 @@
 import { useState } from "react";
-import { createRealtimeInterviewSession, getInterviewFeedback } from "@/src/api/interviewV7";
+import { interviewV7Api } from "@/src/api/interviewV7";
 
-export function useRealtimeInterview() {
+type TranscriptItem = { id: string; speaker: "ai" | "user"; text: string };
+
+export function useRealtimeInterview(token: string | null = null) {
   const [status, setStatus] = useState<"idle" | "connecting" | "live" | "ended" | "error">("idle");
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [transcript, setTranscript] = useState<{ id: string; speaker: "ai" | "user"; text: string }[]>([]);
+  const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
 
   async function startSession(payload: { role: string; level: string; mode: string }) {
     setStatus("connecting");
     try {
-      const session = await createRealtimeInterviewSession(payload);
+      const session = await interviewV7Api.createSession(token, payload);
       setSessionId(session.sessionId);
       setTranscript([
-        { id: "ai-1", speaker: "ai", text: `Welcome to your ${payload.role} voice interview.` },
-        { id: "ai-2", speaker: "ai", text: "Tell me about yourself and the value you bring to this role." }
+        {
+          id: "ai-1",
+          speaker: "ai",
+          text: `Welcome to your ${payload.role} voice interview.`
+        },
+        {
+          id: "ai-2",
+          speaker: "ai",
+          text: "Tell me about yourself and the value you bring to this role."
+        }
       ]);
       setStatus("live");
     } catch {
@@ -22,9 +32,15 @@ export function useRealtimeInterview() {
   }
 
   async function endSession() {
-    if (!sessionId) return;
-    await getInterviewFeedback(sessionId);
-    setStatus("ended");
+    if (!sessionId) return null;
+    try {
+      const feedback = await interviewV7Api.endSession(token, sessionId);
+      setStatus("ended");
+      return feedback;
+    } catch {
+      setStatus("error");
+      return null;
+    }
   }
 
   return { status, transcript, startSession, endSession, sessionId, setTranscript };

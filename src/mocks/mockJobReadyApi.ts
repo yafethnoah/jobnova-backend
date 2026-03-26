@@ -82,7 +82,7 @@ ${payload.fullName || 'Candidate'}`;
       packageBundleFileName: `JobNova_${role.replace(/\s+/g, '_')}_Package.zip`,
       roleTitle: role,
       companyName: company,
-      exportSummary: `Generated a recruiter-ready package for ${role} at ${company} using ${themeBlurb(resumeThemeId, layoutMode)}. In mock mode, the app prepares Word-friendly and print-friendly fallback documents on device when a live backend file is unavailable.`,
+      exportSummary: `Generated a recruiter-ready package for ${role} at ${company} using ${themeBlurb(resumeThemeId, layoutMode)}. In guided preview mode, the app prepares Word-friendly and print-friendly fallback documents on device when a backend export file is unavailable.`,
       amendedResume: rewritten.rewrittenResume,
       tailoredResume: rewritten.rewrittenResume,
       coverLetter: `Dear Hiring Team,

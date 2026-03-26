@@ -35,3 +35,12 @@ export const interviewV7Api = {
     return apiRequest<RealtimeFeedback>(`/interview/realtime/${sessionId}/feedback`, { token });
   }
 };
+
+
+export async function createRealtimeInterviewSession(input: { role: string; level: string; mode: string }, token: string | null = null) {
+  return interviewV7Api.createSession(token, input);
+}
+
+export async function getInterviewFeedback(sessionId: string, token: string | null = null) {
+  return interviewV7Api.feedback(token, sessionId);
+}

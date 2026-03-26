@@ -1,76 +1,73 @@
-import { apiRequest } from './client';
+import { apiRequest } from "@/src/api/client";
 
 export type OnboardingAnswers = {
-  lifeStage?: string;
-  profession?: string;
-  targetRole?: string;
-  country?: string;
-  province?: string;
-  city?: string;
-  workStatus?: string;
+  lifeStage: string;
+  profession: string;
   yearsExperience?: string;
-  yearsOfExperience?: string;
   educationLevel?: string;
   englishLevel?: string;
   frenchLevel?: string;
   hasCanadianExperience?: boolean;
-  industry?: string;
-  strengths?: string[];
-  barriers?: string[];
-  goals?: string[];
   targetGoal?: string;
   urgencyLevel?: string;
-  notes?: string;
 };
 
-export const onboardingApi = {
-  async saveAnswers(token: string, answers: OnboardingAnswers) {
-    if (!token) {
-      throw new Error('Missing access token for onboarding request.');
-    }
+type OnboardingResponse =
+  | OnboardingAnswers
+  | {
+      ok?: boolean;
+      user?: {
+        onboarding?: Partial<OnboardingAnswers>;
+      } | null;
+    };
 
-    return apiRequest('/users/onboarding', {
-      method: 'POST',
+function normalizeAnswers(payload: OnboardingResponse): OnboardingAnswers {
+  const nested = (payload as { user?: { onboarding?: Partial<OnboardingAnswers> } })?.user
+    ?.onboarding;
+
+  const source =
+    nested && typeof nested === "object"
+      ? nested
+      : payload && typeof payload === "object"
+        ? (payload as Partial<OnboardingAnswers>)
+        : {};
+
+  return {
+    lifeStage: String(source.lifeStage || ""),
+    profession: String(source.profession || ""),
+    yearsExperience: source.yearsExperience ? String(source.yearsExperience) : "",
+    educationLevel: source.educationLevel ? String(source.educationLevel) : "",
+    englishLevel: source.englishLevel ? String(source.englishLevel) : "",
+    frenchLevel: source.frenchLevel ? String(source.frenchLevel) : "",
+    hasCanadianExperience: Boolean(source.hasCanadianExperience),
+    targetGoal: source.targetGoal ? String(source.targetGoal) : "",
+    urgencyLevel: source.urgencyLevel ? String(source.urgencyLevel) : "medium",
+  };
+}
+
+export const onboardingApi = {
+  async getAnswers(token: string) {
+    const response = await apiRequest<OnboardingResponse>("/users/onboarding", {
+      method: "GET",
       token,
-      body: {
-        lifeStage: answers.lifeStage ?? '',
-        targetRole: answers.targetRole ?? answers.profession ?? '',
-        country: answers.country ?? '',
-        province: answers.province ?? '',
-        city: answers.city ?? '',
-        workStatus: answers.workStatus ?? '',
-        yearsOfExperience:
-          answers.yearsOfExperience ?? answers.yearsExperience ?? '',
-        industry: answers.industry ?? answers.profession ?? '',
-        strengths: answers.strengths ?? [],
-        barriers: answers.barriers ?? [],
-        goals: answers.goals ?? (answers.targetGoal ? [answers.targetGoal] : []),
-        notes: answers.notes ?? '',
-      },
+    });
+
+    return normalizeAnswers(response);
+  },
+
+  async saveAnswers(token: string, payload: OnboardingAnswers) {
+    return apiRequest("/users/onboarding", {
+      method: "POST",
+      token,
+      body: payload,
     });
   },
 
-  async generateCareerPath(token: string, answers: OnboardingAnswers) {
-    if (!token) {
-      throw new Error('Missing access token for career path request.');
-    }
-
-    return apiRequest('/career-path/generate', {
-      method: 'POST',
+  async generateCareerPath(token: string, payload: OnboardingAnswers) {
+    return apiRequest("/career-path/generate", {
+      method: "POST",
       token,
-      body: {
-        lifeStage: answers.lifeStage ?? '',
-        profession: answers.profession ?? answers.targetRole ?? '',
-        targetRole: answers.targetRole ?? answers.profession ?? '',
-        yearsExperience:
-          answers.yearsExperience ?? answers.yearsOfExperience ?? '',
-        educationLevel: answers.educationLevel ?? '',
-        englishLevel: answers.englishLevel ?? '',
-        frenchLevel: answers.frenchLevel ?? '',
-        hasCanadianExperience: Boolean(answers.hasCanadianExperience),
-        targetGoal: answers.targetGoal ?? '',
-        urgencyLevel: answers.urgencyLevel ?? 'medium',
-      },
+      body: payload,
     });
   },
 };

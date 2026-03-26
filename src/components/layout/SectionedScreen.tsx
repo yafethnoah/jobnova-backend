@@ -1,6 +1,6 @@
 import { ReactNode, useMemo } from "react";
 import { SectionList, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenHeader } from "@/src/components/layout/ScreenHeader";
 import { StickyActionBar } from "@/src/components/layout/StickyActionBar";
 import { SectionNavigator } from "@/src/components/navigation/SectionNavigator";
@@ -27,6 +27,7 @@ export function SectionedScreen({
   stickyAction?: ReactNode;
 }) {
   const { activeKey, onSelect, onViewableItemsChanged, sectionListRef } = useSectionNavigator(sections);
+  const insets = useSafeAreaInsets();
   const data = useMemo(
     () => sections.map((section) => ({ title: section.label, key: section.key, data: [section] })),
     [sections]
@@ -51,9 +52,9 @@ export function SectionedScreen({
           onViewableItemsChanged={onViewableItemsChanged}
           viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
           stickySectionHeadersEnabled={false}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: Math.max(120, insets.bottom + 112) }}
           renderSectionHeader={({ section }) => (
-            <Text style={{ fontSize: 18, fontWeight: "800", color: "#0F172A", marginTop: 14, marginBottom: 10 }}>
+            <Text style={{ fontSize: 18, fontWeight: "800", color: colors.white, marginTop: 14, marginBottom: 10 }}>
               {section.title}
             </Text>
           )}
@@ -70,6 +71,7 @@ export function SectionedScreen({
               {item.content}
             </View>
           )}
+          showsVerticalScrollIndicator={false}
         />
         {stickyAction ? <StickyActionBar>{stickyAction}</StickyActionBar> : null}
       </View>

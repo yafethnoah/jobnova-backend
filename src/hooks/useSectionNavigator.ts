@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import type { SectionList } from "react-native";
 import { useUiStore } from "@/src/features/ui/ui.store";
 
@@ -10,13 +10,13 @@ export function useSectionNavigator(sections: Item[]) {
   const activeKey = useUiStore((state) => state.activeSectionByRoute[routeKey] ?? sections[0]?.key ?? "");
   const setActiveSection = useUiStore((state) => state.setActiveSection);
 
-  const onSelect = (key: string) => {
+  const onSelect = useCallback((key: string) => {
     const index = sections.findIndex((section) => section.key === key);
     if (index >= 0) {
       sectionListRef.current?.scrollToLocation({ sectionIndex: index, itemIndex: 0, animated: true, viewOffset: 8 });
       setActiveSection(routeKey, key);
     }
-  };
+  }, [routeKey, sections, setActiveSection]);
 
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
     const visible = viewableItems?.find((item: any) => item?.item?.key);

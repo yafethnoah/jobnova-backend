@@ -3,6 +3,62 @@ import { useQuery } from '@tanstack/react-query';
 import { jobsApi } from '@/src/api/jobs';
 import { useAuth } from '@/src/features/auth/useAuth';
 
-export type AutopilotPackageItem = { id: string; sourceJobId?: string | null; targetRole?: string; companyName?: string; status?: 'draft' | 'approved' | string; linkedExportJobId?: string | null; approvedAt?: string | null; createdAt?: string; package?: { exportWarning?: string; exportArtifacts?: Array<{ fileName?: string; downloadUrl?: string; type?: string; format?: string; }> }; };
-function safeItems(value: unknown): AutopilotPackageItem[] { if (!Array.isArray(value)) return []; return value.filter(Boolean).map((item: any) => ({ id: String(item.id || ''), sourceJobId: item.sourceJobId || null, targetRole: item.targetRole || '', companyName: item.companyName || '', status: item.status || 'draft', linkedExportJobId: item.linkedExportJobId || null, approvedAt: item.approvedAt || null, createdAt: item.createdAt || '', package: item.package || {} })).filter((item) => item.id); }
-export function useAutopilotPackages() { const { accessToken } = useAuth(); const query = useQuery({ queryKey: ['autopilot-packages'], queryFn: () => jobsApi.listAutopilotPackages(accessToken ?? null), refetchInterval: 15000 }); const items = useMemo(() => safeItems(query.data?.items), [query.data]); const counts = useMemo(() => ({ total: items.length, draft: items.filter((item) => item.status !== 'approved').length, approved: items.filter((item) => item.status === 'approved').length, withLinkedExport: items.filter((item) => item.linkedExportJobId).length, withVerifiedArtifacts: items.filter((item) => Array.isArray(item.package?.exportArtifacts) && item.package!.exportArtifacts!.some((artifact) => artifact?.fileName && artifact?.downloadUrl && !String(artifact.downloadUrl).includes('undefined'))).length }), [items]); return { ...query, data: { items, counts } }; }
+export type AutopilotPackageItem = {
+  id: string;
+  sourceJobId?: string | null;
+  targetRole?: string;
+  companyName?: string;
+  status?: 'draft' | 'approved' | string;
+  linkedResumeVersionId?: string | null;
+  linkedExportJobId?: string | null;
+  approvedAt?: string | null;
+  createdAt?: string;
+  package?: {
+    exportWarning?: string;
+    exportArtifacts?: { fileName?: string; downloadUrl?: string; type?: string; format?: string }[];
+  };
+};
+
+function safeItems(value: unknown): AutopilotPackageItem[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(Boolean)
+    .map((item: any) => ({
+      id: String(item.id || ''),
+      sourceJobId: item.sourceJobId || null,
+      targetRole: item.targetRole || '',
+      companyName: item.companyName || '',
+      status: item.status || 'draft',
+      linkedResumeVersionId: item.linkedResumeVersionId || null,
+      linkedExportJobId: item.linkedExportJobId || null,
+      approvedAt: item.approvedAt || null,
+      createdAt: item.createdAt || '',
+      package: item.package || {}
+    }))
+    .filter((item) => item.id);
+}
+
+export function useAutopilotPackages() {
+  const { accessToken } = useAuth();
+  const query = useQuery({
+    queryKey: ['autopilot-packages'],
+    queryFn: () => jobsApi.listAutopilotPackages(accessToken ?? null),
+    refetchInterval: 15000
+  });
+
+  const items = useMemo(() => safeItems(query.data?.items), [query.data]);
+  const counts = useMemo(
+    () => ({
+      total: items.length,
+      draft: items.filter((item) => item.status !== 'approved').length,
+      approved: items.filter((item) => item.status === 'approved').length,
+      withLinkedExport: items.filter((item) => item.linkedExportJobId).length,
+      withVerifiedArtifacts: items.filter(
+        (item) => Array.isArray(item.package?.exportArtifacts) && item.package!.exportArtifacts!.some((artifact) => artifact?.fileName && artifact?.downloadUrl && !String(artifact.downloadUrl).includes('undefined'))
+      ).length
+    }),
+    [items]
+  );
+
+  return { ...query, data: { items, counts } };
+}

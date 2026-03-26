@@ -1,9 +1,9 @@
-import React from 'react';
-import { ScrollView, View, ViewStyle, useWindowDimensions } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React from "react";
+import { ScrollView, View, ViewStyle, useWindowDimensions } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { colors } from '@/src/constants/colors';
-import { DailyEncouragement } from '@/src/components/ui/DailyEncouragement';
+import { colors } from "@/src/constants/colors";
+import { DailyEncouragement } from "@/src/components/ui/DailyEncouragement";
 
 type AppScreenProps = {
   children: React.ReactNode;
@@ -14,9 +14,10 @@ type AppScreenProps = {
 
 export function AppScreen({ children, scroll = true, contentContainerStyle, showEncouragement = true }: AppScreenProps) {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const horizontalPadding = width >= 900 ? 32 : width >= 600 ? 28 : 20;
   const topPadding = width >= 600 ? 28 : 20;
-  const bottomPadding = width >= 600 ? 48 : 36;
+  const bottomPadding = Math.max(120, insets.bottom + 112);
 
   const baseContent = (
     <>
@@ -27,7 +28,7 @@ export function AppScreen({ children, scroll = true, contentContainerStyle, show
 
   if (scroll) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={["top"]}>
         <ScrollView
           contentContainerStyle={[
             { paddingHorizontal: horizontalPadding, paddingTop: topPadding, gap: 16, paddingBottom: bottomPadding },
@@ -44,7 +45,7 @@ export function AppScreen({ children, scroll = true, contentContainerStyle, show
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={["top"]}>
       <View style={[{ flex: 1, paddingHorizontal: horizontalPadding, paddingTop: topPadding, gap: 16, paddingBottom: bottomPadding }, contentContainerStyle]}>
         {baseContent}
       </View>

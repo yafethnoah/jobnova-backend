@@ -1,1 +1,1 @@
-export const LINKEDIN_OPTIMIZATION_CACHE_KEY = 'northpath_linkedin_optimization';
+export const LINKEDIN_OPTIMIZATION_CACHE_KEY = 'jobnova_linkedin_optimization';

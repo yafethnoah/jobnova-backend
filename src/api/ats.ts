@@ -1,5 +1,4 @@
 import { apiRequest } from "@/src/api/client";
-import { env } from "@/src/lib/env";
 
 export type AtsCompareInput = {
   resumeText: string;

@@ -7,7 +7,7 @@ export const jobReadyApi = {
   async generate(token: string | null, payload: JobReadyInput) {
     if (env.useMockApi) return mockJobReadyApi.generate(payload);
     try {
-      return await optionalAuthApiRequest<JobReadyPackage>('/assets/job-ready-package', token, { method: 'POST', body: payload, timeoutMs: 90000 });
+      return await optionalAuthApiRequest<JobReadyPackage>('/job-ready/job-ready-package', token, { method: 'POST', body: payload, timeoutMs: 90000 });
     } catch (error) {
       throw error instanceof Error
         ? error
@@ -17,7 +17,7 @@ export const jobReadyApi = {
   async history(token: string | null) {
     if (env.useMockApi) return [] as JobReadyPackage[];
     try {
-      return await optionalAuthApiRequest<JobReadyPackage[]>('/assets/job-ready-package/history', token, { timeoutMs: 12000 });
+      return await optionalAuthApiRequest<JobReadyPackage[]>('/job-ready/job-ready-package/history', token, { timeoutMs: 12000 });
     } catch {
       return [] as JobReadyPackage[];
     }
@@ -25,7 +25,7 @@ export const jobReadyApi = {
   async exportLibrary(token: string | null) {
     if (env.useMockApi) return [] as ExportArtifact[];
     try {
-      return await optionalAuthApiRequest<ExportArtifact[]>('/assets/export-library', token, { timeoutMs: 12000 });
+      return await optionalAuthApiRequest<ExportArtifact[]>('/job-ready/export-library', token, { timeoutMs: 12000 });
     } catch {
       return [] as ExportArtifact[];
     }

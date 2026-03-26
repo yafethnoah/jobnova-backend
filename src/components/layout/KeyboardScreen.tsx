@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenHeader } from "@/src/components/layout/ScreenHeader";
 import { StickyActionBar } from "@/src/components/layout/StickyActionBar";
 import { KeyboardSpacer } from "@/src/components/layout/KeyboardSpacer";
@@ -14,6 +14,9 @@ export type KeyboardScreenProps = {
 };
 
 export function KeyboardScreen({ title, subtitle, stickyAction, children }: KeyboardScreenProps) {
+  const insets = useSafeAreaInsets();
+  const contentBottom = Math.max(120, insets.bottom + 112);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={["top", "left", "right"]}>
       <KeyboardAvoidingView
@@ -23,9 +26,10 @@ export function KeyboardScreen({ title, subtitle, stickyAction, children }: Keyb
       >
         <View style={{ flex: 1 }}>
           <ScrollView
-            contentContainerStyle={{ padding: 20, paddingBottom: 28, gap: 16 }}
+            contentContainerStyle={{ padding: 20, paddingBottom: contentBottom, gap: 16 }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
+            showsVerticalScrollIndicator={false}
           >
             <ScreenHeader title={title} subtitle={subtitle} />
             {children}

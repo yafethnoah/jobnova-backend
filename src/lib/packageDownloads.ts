@@ -1,10 +1,21 @@
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 import type { ExportArtifact, JobReadyPackage } from '@/src/features/resume/jobReady.types';
 import { textFromUnknown } from '@/src/lib/renderText';
 
-const EXPORT_DIR = `${FileSystem.documentDirectory ?? ''}jobnova-exports/`;
+const EXPORT_DIR = `${FileSystem.cacheDirectory ?? ''}jobnova-exports/`;
+
+type JobReadyPackageWithExtras = JobReadyPackage & {
+  interviewStoryBank?: unknown;
+  applicationAnswers?: unknown;
+};
+
+type ResolvedArtifact = Partial<ExportArtifact> & {
+  fileName: string;
+  label?: string;
+  downloadUrl?: string;
+};
 
 function sanitizeFileName(value: string, fallback = 'JobNova_Export.txt'): string {
   const safe = String(value || '')
@@ -12,6 +23,7 @@ function sanitizeFileName(value: string, fallback = 'JobNova_Export.txt'): strin
     .replace(/\s+/g, '_')
     .replace(/_+/g, '_')
     .trim();
+
   return safe || fallback;
 }
 
@@ -21,21 +33,30 @@ function ensureExtension(fileName: string, fallbackExt = '.txt'): string {
 
 function mimeTypeForFileName(fileName: string): string | undefined {
   const lower = fileName.toLowerCase();
+
   if (lower.endsWith('.pdf')) return 'application/pdf';
-  if (lower.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (lower.endsWith('.docx')) {
+    return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  }
   if (lower.endsWith('.doc')) return 'application/msword';
   if (lower.endsWith('.zip')) return 'application/zip';
   if (lower.endsWith('.txt')) return 'text/plain';
   if (lower.endsWith('.html')) return 'text/html';
+
   return undefined;
 }
 
 async function ensureExportDir(): Promise<string> {
-  if (!EXPORT_DIR) throw new Error('Could not access local device storage.');
+  if (!EXPORT_DIR) {
+    throw new Error('Could not access local device storage.');
+  }
+
   const info = await FileSystem.getInfoAsync(EXPORT_DIR);
+
   if (!info.exists) {
     await FileSystem.makeDirectoryAsync(EXPORT_DIR, { intermediates: true });
   }
+
   return EXPORT_DIR;
 }
 
@@ -43,36 +64,26 @@ async function shareFile(uri: string, fileName: string) {
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(uri, {
       mimeType: mimeTypeForFileName(fileName) || 'text/plain',
-      dialogTitle: `Save ${fileName}`
+      dialogTitle: `Save ${fileName}`,
     });
   }
 }
 
-export async function saveTextToDevice(fileName: string, content: string): Promise<string> {
-  const dir = await ensureExportDir();
-  const safeName = ensureExtension(sanitizeFileName(fileName), '.txt');
-  const uri = `${dir}${safeName}`;
-  await FileSystem.writeAsStringAsync(uri, content || '', { encoding: FileSystem.EncodingType.UTF8 });
-  await shareFile(uri, safeName);
-  return uri;
-}
-
-export async function saveHtmlToDevice(fileName: string, content: string): Promise<string> {
-  const dir = await ensureExportDir();
-  const safeName = ensureExtension(sanitizeFileName(fileName), '.html');
-  const uri = `${dir}${safeName}`;
-  await FileSystem.writeAsStringAsync(uri, content || '', { encoding: FileSystem.EncodingType.UTF8 });
-  await shareFile(uri, safeName);
-  return uri;
+function normalizeText(value: unknown): string {
+  return textFromUnknown(value).trim();
 }
 
 function buildHtmlDocument(title: string, body: string): string {
-  const escapedTitle = title.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const escapedTitle = title
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
   const escapedBody = body
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/\n/g, '<br />');
+    .replace(/\r?\n/g, '<br />');
 
   return `<!doctype html>
 <html>
@@ -95,22 +106,155 @@ function buildHtmlDocument(title: string, body: string): string {
 </html>`;
 }
 
-export async function saveSectionPreviewToDevice(sectionTitle: string, fileName: string, content: unknown): Promise<string> {
+function getExportArtifacts(data: JobReadyPackage): ExportArtifact[] {
+  return Array.isArray(data.exportArtifacts) ? data.exportArtifacts : [];
+}
+
+function findArtifactByNameOrLabel(
+  data: JobReadyPackage,
+  target: string
+): ExportArtifact | undefined {
+  const needle = target.trim().toLowerCase();
+
+  return getExportArtifacts(data).find((artifact) => {
+    const fileName = String(artifact.fileName || '').trim().toLowerCase();
+    const label = String(artifact.label || '').trim().toLowerCase();
+
+    return fileName === needle || label === needle;
+  });
+}
+
+function buildFullPackageText(data: JobReadyPackage): string {
+  const enriched = data as JobReadyPackageWithExtras;
+  const artifacts = getExportArtifacts(data);
+
+  return [
+    'JOBNOVA FULL PACKAGE',
+    '====================',
+    '',
+    'ROLE',
+    data.roleTitle || 'Target role',
+    '',
+    'COMPANY',
+    data.companyName || 'Target company',
+    '',
+    'SUMMARY',
+    data.exportSummary || 'Tailored package generated.',
+    '',
+    'TAILORED RESUME',
+    normalizeText(data.tailoredResume || data.amendedResume) || 'Not available.',
+    '',
+    'COVER LETTER',
+    normalizeText(data.coverLetter) || 'Not available.',
+    '',
+    'RECRUITER EMAIL SUBJECT',
+    normalizeText(data.recruiterEmailSubject) || 'Not available.',
+    '',
+    'RECRUITER EMAIL BODY',
+    normalizeText(data.recruiterEmailBody) || 'Not available.',
+    '',
+    'LINKEDIN HEADLINE',
+    normalizeText(data.linkedinHeadline) || 'Not available.',
+    '',
+    'INTERVIEW STORY BANK',
+    normalizeText(enriched.interviewStoryBank) || 'Not available.',
+    '',
+    'APPLICATION ANSWERS',
+    normalizeText(enriched.applicationAnswers) || 'Not available.',
+    '',
+    'EXPORT FILES',
+    ...(artifacts.length
+      ? artifacts.map((artifact) =>
+          `${artifact.label || artifact.fileName || 'Export'}${
+            artifact.downloadUrl ? ` — ${artifact.downloadUrl}` : ''
+          }`
+        )
+      : ['No generated export files yet.']),
+  ].join('\n');
+}
+
+function resolveArtifact(
+  artifactOrFileName: ExportArtifact | string,
+  data?: JobReadyPackage
+): ResolvedArtifact {
+  if (typeof artifactOrFileName !== 'string') {
+    return {
+      ...artifactOrFileName,
+      fileName: artifactOrFileName.fileName || artifactOrFileName.label || 'JobNova_Export',
+    };
+  }
+
+  const target = artifactOrFileName.trim();
+  const found = data ? findArtifactByNameOrLabel(data, target) : undefined;
+
+  if (found) {
+    return {
+      ...found,
+      fileName: found.fileName || found.label || target || 'JobNova_Export',
+    };
+  }
+
+  return {
+    fileName: target || 'JobNova_Export',
+    label: target || 'JobNova Export',
+    downloadUrl: '',
+  };
+}
+
+export async function saveTextToDevice(fileName: string, content: string): Promise<string> {
+  const dir = await ensureExportDir();
+  const safeName = ensureExtension(sanitizeFileName(fileName), '.txt');
+  const uri = `${dir}${safeName}`;
+
+  await FileSystem.writeAsStringAsync(uri, content || '', {
+    encoding: FileSystem.EncodingType.UTF8,
+  });
+
+  await shareFile(uri, safeName);
+  return uri;
+}
+
+export async function saveHtmlToDevice(fileName: string, content: string): Promise<string> {
+  const dir = await ensureExportDir();
+  const safeName = ensureExtension(sanitizeFileName(fileName), '.html');
+  const uri = `${dir}${safeName}`;
+
+  await FileSystem.writeAsStringAsync(uri, content || '', {
+    encoding: FileSystem.EncodingType.UTF8,
+  });
+
+  await shareFile(uri, safeName);
+  return uri;
+}
+
+export async function saveSectionPreviewToDevice(
+  sectionTitle: string,
+  fileName: string,
+  content: unknown
+): Promise<string> {
   const text = typeof content === 'string' ? content : textFromUnknown(content);
   const body = [sectionTitle.toUpperCase(), '', text].join('\n');
   return saveTextToDevice(fileName, body);
 }
 
-export async function downloadRemoteFileToDevice(downloadUrl: string, fileName: string): Promise<string> {
+export async function downloadRemoteFileToDevice(
+  downloadUrl: string,
+  fileName: string
+): Promise<string> {
   const dir = await ensureExportDir();
   const safeName = sanitizeFileName(fileName);
   const uri = `${dir}${safeName}`;
+
   const result = await FileSystem.downloadAsync(downloadUrl, uri);
   await shareFile(result.uri, safeName);
+
   return result.uri;
 }
 
 export function buildPackageSummaryText(data: JobReadyPackage): string {
+  const enriched = data as JobReadyPackageWithExtras;
+  const artifacts = getExportArtifacts(data);
+
   return [
     'JOBNOVA TAILORED PACKAGE',
     '',
@@ -124,77 +268,114 @@ export function buildPackageSummaryText(data: JobReadyPackage): string {
     data.exportSummary || 'Tailored package generated.',
     '',
     'TAILORED RESUME',
-    textFromUnknown(data.tailoredResume || data.amendedResume),
+    normalizeText(data.tailoredResume || data.amendedResume),
     '',
     'COVER LETTER',
-    textFromUnknown(data.coverLetter),
+    normalizeText(data.coverLetter),
     '',
     'RECRUITER EMAIL SUBJECT',
-    textFromUnknown(data.recruiterEmailSubject),
+    normalizeText(data.recruiterEmailSubject),
     '',
     'RECRUITER EMAIL BODY',
-    textFromUnknown(data.recruiterEmailBody),
+    normalizeText(data.recruiterEmailBody),
     '',
     'LINKEDIN HEADLINE',
-    textFromUnknown(data.linkedinHeadline),
+    normalizeText(data.linkedinHeadline),
     '',
-    'LINKEDIN ABOUT',
-    textFromUnknown(data.linkedinAbout),
+    'INTERVIEW STORY BANK',
+    normalizeText(enriched.interviewStoryBank),
     '',
-    'EXPORT NOTE',
-    'This device copy was generated by the mobile app. When a live backend export is unavailable, JobNova creates readable fallback documents instead of fake or broken files.'
-  ]
-    .filter(Boolean)
-    .join('\n');
+    'APPLICATION ANSWERS',
+    normalizeText(enriched.applicationAnswers),
+    '',
+    'EXPORT FILES',
+    ...(artifacts.length
+      ? artifacts.map((artifact) =>
+          `${artifact.label || artifact.fileName || 'Export'}${
+            artifact.downloadUrl ? ` — ${artifact.downloadUrl}` : ''
+          }`
+        )
+      : ['No generated export files yet.']),
+  ].join('\n');
 }
 
-export function buildArtifactText(artifact: ExportArtifact, data: JobReadyPackage): string {
-  switch (artifact.type) {
-    case 'resume':
-      return textFromUnknown(data.tailoredResume || data.amendedResume);
-    case 'cover-letter':
-      return textFromUnknown(data.coverLetter);
-    case 'recruiter-email':
-      return ['SUBJECT', textFromUnknown(data.recruiterEmailSubject), '', 'BODY', textFromUnknown(data.recruiterEmailBody)].join('\n');
-    default:
-      return buildPackageSummaryText(data);
-  }
+export async function savePackageSummaryToDevice(data: JobReadyPackage): Promise<string> {
+  const fileName = ensureExtension(
+    sanitizeFileName(
+      `${data.roleTitle || 'JobNova'}_${data.companyName || 'Package'}_Summary`,
+      'JobNova_Package_Summary.txt'
+    ),
+    '.txt'
+  );
+
+  return saveTextToDevice(fileName, buildPackageSummaryText(data));
 }
 
-async function saveFallbackDocument(artifact: ExportArtifact, data: JobReadyPackage): Promise<string> {
-  const text = buildArtifactText(artifact, data);
-  const title = `${artifact.label} — ${data.roleTitle || 'JobNova Export'}`;
+export async function savePackageEmailPreviewToDevice(data: JobReadyPackage): Promise<string> {
+  const subject = normalizeText(data.recruiterEmailSubject) || 'Recruiter Email';
+  const body = normalizeText(data.recruiterEmailBody);
+  const html = buildHtmlDocument(subject, body);
 
-  if (artifact.format === 'docx') {
-    const html = buildHtmlDocument(title, text);
-    const docName = ensureExtension(sanitizeFileName(artifact.fileName.replace(/\.docx$/i, '.doc')), '.doc');
-    return saveHtmlToDevice(docName, html);
-  }
+  const fileName = ensureExtension(
+    sanitizeFileName(
+      `${data.roleTitle || 'JobNova'}_${data.companyName || 'Recruiter'}_Email`,
+      'JobNova_Recruiter_Email.html'
+    ),
+    '.html'
+  );
 
-  if (artifact.format === 'pdf') {
-    const html = buildHtmlDocument(title, text);
-    const htmlName = ensureExtension(sanitizeFileName(artifact.fileName.replace(/\.pdf$/i, '.html')), '.html');
-    return saveHtmlToDevice(htmlName, html);
-  }
-
-  return saveTextToDevice(artifact.fileName, text);
-}
-
-export async function savePackageArtifactToDevice(artifact: ExportArtifact, data: JobReadyPackage): Promise<string> {
-  if (artifact.downloadUrl && !String(artifact.downloadUrl).includes('undefined')) {
-    return downloadRemoteFileToDevice(artifact.downloadUrl, artifact.fileName);
-  }
-  return saveFallbackDocument(artifact, data);
+  return saveHtmlToDevice(fileName, html);
 }
 
 export async function saveFullPackageToDevice(data: JobReadyPackage): Promise<string> {
-  const role = sanitizeFileName(data.roleTitle || 'Tailored_Package', 'Tailored_Package');
-  if (data.packageBundleUrl && !String(data.packageBundleUrl).includes('undefined')) {
-    return downloadRemoteFileToDevice(
-      data.packageBundleUrl,
-      data.packageBundleFileName || `JobNova_${role}_Full_Package.zip`
-    );
+  const fileName = ensureExtension(
+    sanitizeFileName(
+      `${data.roleTitle || 'JobNova'}_${data.companyName || 'Package'}_Full_Package`,
+      'JobNova_Full_Package.txt'
+    ),
+    '.txt'
+  );
+
+  return saveTextToDevice(fileName, buildFullPackageText(data));
+}
+
+export async function savePackageArtifactToDevice(
+  artifactOrFileName: ExportArtifact | string,
+  data?: JobReadyPackage
+): Promise<string> {
+  const artifact = resolveArtifact(artifactOrFileName, data);
+
+  const fileName = ensureExtension(
+    sanitizeFileName(
+      artifact.fileName || artifact.label || 'JobNova_Export',
+      'JobNova_Export.txt'
+    ),
+    '.txt'
+  );
+
+  if (artifact.downloadUrl) {
+    return downloadRemoteFileToDevice(artifact.downloadUrl, fileName);
   }
-  const html = buildHtmlDocument(`JobNova Full Package — ${data.roleTitle || 'Tailored Package'}`, buildPackageSummaryText(data));
-  return saveHtmlToDevice(`JobNova_${role}_Full_Package.html`, html);
+
+  const fallbackContent = [
+    artifact.label || artifact.fileName || 'Export',
+    '',
+    'This export file is not available for direct download yet.',
+    'Generate the package again or connect the live backend export service.',
+  ].join('\n');
+
+  return saveTextToDevice(fileName, fallbackContent);
+}
+
+export async function saveNamedPackageArtifactToDevice(
+  data: JobReadyPackage,
+  artifactNameOrLabel: string
+): Promise<string> {
+  const artifact = findArtifactByNameOrLabel(data, artifactNameOrLabel);
+
+  if (!artifact) {
+    throw new Error(`Could not find export artifact "${artifactNameOrLabel}".`);
+  }
+
+  return savePackageArtifactToDevice(artifact, data);
 }

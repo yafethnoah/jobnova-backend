@@ -18,7 +18,7 @@ export type BackendHealth = {
   queueDepth?: number;
 };
 
-function mockHealth(message = 'App is running in mock mode.'): BackendHealth {
+function mockHealth(message = 'The guided preview is active.'): BackendHealth {
   return {
     ok: true,
     status: 'fallback',

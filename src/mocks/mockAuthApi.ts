@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { mockDelay } from "@/src/lib/mockDelay";
 import type { AuthResponse, SessionUser, SignInPayload, SignUpPayload } from "@/src/features/auth/auth.types";
 
-const MOCK_USER_KEY = "northpath_mock_user";
+const MOCK_USER_KEY = "jobnova_mock_user";
 const defaultMockUser: SessionUser = { id: "user-1", email: "you@example.com", fullName: "Shadi", onboardingCompleted: false };
 
 async function getStoredMockUser(): Promise<SessionUser> {

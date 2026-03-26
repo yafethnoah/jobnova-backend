@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { FlatList, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenHeader } from "@/src/components/layout/ScreenHeader";
 import { colors } from "@/src/constants/colors";
 
@@ -25,6 +25,8 @@ export function ListScreen<T>({
   refreshing?: boolean;
   emptyState?: ReactNode;
 }) {
+  const insets = useSafeAreaInsets();
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={["top", "left", "right"]}>
       <FlatList
@@ -33,14 +35,15 @@ export function ListScreen<T>({
         renderItem={renderItem}
         onRefresh={onRefresh}
         refreshing={refreshing}
-        contentContainerStyle={{ padding: 20, paddingBottom: 30, gap: 12 }}
+        contentContainerStyle={{ padding: 20, paddingBottom: Math.max(120, insets.bottom + 112), gap: 12 }}
         ListHeaderComponent={
           <View style={{ gap: 12, marginBottom: 6 }}>
             <ScreenHeader title={title} subtitle={subtitle} />
             {filters}
           </View>
         }
-        ListEmptyComponent={emptyState ?? null}
+        ListEmptyComponent={emptyState ? (() => <>{emptyState}</>) : null}
+        showsVerticalScrollIndicator={false}
       />
     </SafeAreaView>
   );

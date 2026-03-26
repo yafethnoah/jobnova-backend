@@ -1,6 +1,6 @@
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 
-import { apiRequest, optionalAuthApiRequest, optionalAuthFormRequest } from '@/src/api/client';
+import { optionalAuthApiRequest, optionalAuthFormRequest } from '@/src/api/client';
 import { env } from '@/src/lib/env';
 import { mockResumeApi } from '@/src/mocks/mockResumeApi';
 import type {
@@ -66,8 +66,8 @@ export const resumeApi = {
       return {
         ok: true,
         message: extractedText
-          ? 'Local text file attached and extracted in mock mode.'
-          : 'Mock mode cannot fully parse PDF or DOCX locally yet. Paste resume text for the strongest comparison, or attach a TXT export of the resume.',
+          ? 'Local text file attached and extracted successfully.'
+          : 'This preview environment cannot fully parse PDF or DOCX on device yet. Paste your resume text or attach a TXT export for the strongest comparison.',
         fileName: file.name,
         uploadedFileName: file.name,
         extractedText

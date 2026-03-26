@@ -1,208 +1,65 @@
-const jwt = require('jsonwebtoken');
-const { env, disableLocalAuth } = require('../config/env');
-const {
-  getUserByToken,
-  ensureUserData,
-  publicUser,
-  attachExternalUser,
-  preloadUser,
-} = require('../data/store');
-const { getSupabaseClient } = require('../lib/supabase');
+const jwt = require("jsonwebtoken");
 
-function extractToken(headerValue = '') {
-  const value = String(headerValue || '').trim();
-  if (!value) return '';
-  if (/^bearer\s+/i.test(value)) {
-    return value.replace(/^bearer\s+/i, '').trim();
-  }
-  return value;
-}
+function extractBearerToken(authHeader = "") {
+  if (!authHeader || typeof authHeader !== "string") return null;
 
-function signAppJwt(user) {
-  return jwt.sign(
-    {
-      sub: user.id,
-      email: user.email,
-      authProvider: user.authProvider || 'local',
-    },
-    env.JWT_SECRET,
-    { expiresIn: env.JWT_EXPIRES_IN }
-  );
-}
+  const trimmed = authHeader.trim();
 
-function verifyAppJwt(token) {
-  try {
-    return jwt.verify(token, env.JWT_SECRET);
-  } catch {
+  if (!trimmed.toLowerCase().startsWith("bearer ")) {
     return null;
   }
+
+  const token = trimmed.slice(7).trim();
+  return token || null;
 }
 
-async function resolveLocalToken(token) {
-  if (!token) return null;
-
-  const sessionUser = await getUserByToken(token);
-  if (sessionUser) {
-    return {
-      user: sessionUser,
-      tokenType: 'local-session',
-      appToken: signAppJwt(sessionUser),
-    };
-  }
-
-  const decoded = verifyAppJwt(token);
-  if (!decoded?.sub) return null;
-
-  const { user } = await preloadUser(decoded.sub);
-  if (!user) return null;
-
-  return {
-    user,
-    tokenType: 'app-jwt',
-    appToken: token,
-  };
-}
-
-async function resolveSupabaseToken(token) {
-  if (!token) return null;
-
-  const supabase = getSupabaseClient();
-  if (!supabase) return null;
-
+function requireAuth(req, res, next) {
   try {
-    const { data, error } = await supabase.auth.getUser(token);
+    const authHeader = req.headers.authorization || "";
+    const token = extractBearerToken(authHeader);
 
-    if (error || !data?.user?.email) {
-      return null;
-    }
-
-    const attached = await attachExternalUser({
-      id: data.user.id,
-      email: data.user.email,
-      fullName:
-        data.user.user_metadata?.full_name ||
-        data.user.user_metadata?.name ||
-        data.user.email.split('@')[0],
-      authProvider: 'supabase',
+    console.log("[AUTH] Incoming request:", {
+      method: req.method,
+      path: req.originalUrl,
+      hasAuthorizationHeader: Boolean(authHeader),
+      tokenPreview: token ? `${token.slice(0, 12)}...` : null,
     });
 
-    if (!attached) return null;
-
-    return {
-      user: attached,
-      tokenType: 'supabase',
-      appToken: signAppJwt(attached),
-      supabaseUser: data.user,
-    };
-  } catch {
-    return null;
-  }
-}
-
-async function hydrateRequestAuth(req, options = { required: false }) {
-  const token = extractToken(req.headers.authorization);
-
-  req.auth = {
-    token: token || null,
-    tokenType: null,
-    appToken: null,
-    isAuthenticated: false,
-  };
-
-  if (!token) {
-    req.user = null;
-    req.userData = ensureUserData('guest');
-
-    if (options.required) {
-      return {
-        ok: false,
-        status: 401,
-        body: { message: 'Authorization token is required.' },
-      };
+    if (!token) {
+      console.log("[AUTH] No bearer token found");
+      return res.status(401).json({
+        message: "Authentication failed or the token is no longer valid.",
+      });
     }
 
-    return { ok: true };
-  }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-  const local = await resolveLocalToken(token);
-  if (local && !disableLocalAuth) {
-    req.user = publicUser(local.user);
-    req.userData = ensureUserData(local.user.id);
-    req.auth = {
-      token,
-      tokenType: local.tokenType,
-      appToken: local.appToken,
-      isAuthenticated: true,
+    req.user = {
+      id: decoded.id || decoded.sub,
+      email: decoded.email || null,
     };
-    return { ok: true };
-  }
 
-  const supabase = await resolveSupabaseToken(token);
-  if (supabase) {
-    req.user = publicUser(supabase.user);
-    req.userData = ensureUserData(supabase.user.id);
-    req.auth = {
-      token,
-      tokenType: supabase.tokenType,
-      appToken: supabase.appToken,
-      isAuthenticated: true,
-    };
-    return { ok: true };
-  }
-
-  req.user = null;
-  req.userData = ensureUserData('guest');
-
-  if (options.required) {
-    return {
-      ok: false,
-      status: 401,
-      body: {
-        message: 'Authentication failed or the token is no longer valid.',
-      },
-    };
-  }
-
-  return { ok: true };
-}
-
-async function requireAuth(req, res, next) {
-  try {
-    const result = await hydrateRequestAuth(req, { required: true });
-
-    if (!result.ok) {
-      return res.status(result.status).json(result.body);
+    if (!req.user.id) {
+      console.log("[AUTH] Token decoded but missing user id");
+      return res.status(401).json({
+        message: "Authentication failed or the token is no longer valid.",
+      });
     }
 
-    return next();
+    console.log("[AUTH] Token verified:", {
+      userId: req.user.id,
+      email: req.user.email,
+    });
+
+    next();
   } catch (error) {
+    console.log("[AUTH] Verification failed:", error.message);
     return res.status(401).json({
-      message: error?.message || 'Authentication failed.',
+      message: "Authentication failed or the token is no longer valid.",
     });
-  }
-}
-
-async function optionalAuth(req, _res, next) {
-  try {
-    await hydrateRequestAuth(req, { required: false });
-    return next();
-  } catch {
-    req.user = null;
-    req.userData = ensureUserData('guest');
-    req.auth = {
-      token: null,
-      tokenType: null,
-      appToken: null,
-      isAuthenticated: false,
-    };
-    return next();
   }
 }
 
 module.exports = {
-  extractToken,
-  signAppJwt,
-  verifyAppJwt,
   requireAuth,
-  optionalAuth,
 };

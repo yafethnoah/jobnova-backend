@@ -39,8 +39,8 @@ export default function OnboardingResultsScreen() {
         urgencyLevel: answers.urgencyLevel || "medium",
       };
 
-      await onboardingApi.saveAnswers(accessToken, payload);
-      await onboardingApi.generateCareerPath(accessToken, payload);
+      await onboardingApi.saveAnswers(payload);
+      await onboardingApi.generateCareerPath(payload);
 
       router.replace("/(app)/home");
     } catch (err) {

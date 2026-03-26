@@ -46,7 +46,22 @@ export type CareerPathResponse = {
 
 export const onboardingApi = {
   getAnswers: async (): Promise<GetOnboardingResponse | { error: "unauthorized"; status: 401 }> => {
-    return await apiRequest("/users/onboarding", "GET");
+    try {
+      return await apiRequest("/users/onboarding", "GET");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+
+      // Fallback for older backend versions that only expose /users/me
+      if (
+        message.includes("404") ||
+        message.includes("HTML instead of JSON") ||
+        message.includes("Request failed")
+      ) {
+        return await apiRequest("/users/me", "GET");
+      }
+
+      throw error;
+    }
   },
 
   saveAnswers: async (
@@ -55,9 +70,9 @@ export const onboardingApi = {
     return await apiRequest("/users/onboarding", "POST", answers);
   },
 
-  generateCareerPath: async (): Promise<
-    CareerPathResponse | { error: "unauthorized"; status: 401 }
-  > => {
-    return await apiRequest("/career-path/generate", "POST");
+  generateCareerPath: async (
+    answers?: OnboardingAnswers
+  ): Promise<CareerPathResponse | { error: "unauthorized"; status: 401 }> => {
+    return await apiRequest("/career-path/generate", "POST", answers ?? {});
   },
 };

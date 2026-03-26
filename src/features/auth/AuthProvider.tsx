@@ -44,7 +44,11 @@ type AuthContextValue = {
   refreshMe: () => Promise<void>;
   markOnboardingComplete: () => void;
   signInLocal: (email: string, password: string) => Promise<void>;
-  registerLocal: (fullName: string, email: string, password: string) => Promise<void>;
+  registerLocal: (
+    fullName: string,
+    email: string,
+    password: string
+  ) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -53,7 +57,6 @@ function normalizeUser(payload: unknown): SessionUser | null {
   if (!payload || typeof payload !== "object") return null;
 
   const raw = payload as Record<string, unknown>;
-
   const id = raw.id ? String(raw.id) : "";
   const email = raw.email ? String(raw.email) : "";
 
@@ -104,22 +107,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshMe = useCallback(async () => {
     try {
       const payload = await authApi.me();
+      const resolvedUser = normalizeUser((payload as any)?.user ?? payload);
 
-      if ((payload as any)?.error === "unauthorized") {
+      if (!resolvedUser) {
         await applySignedOutState();
         return;
       }
 
-      const resolvedUser = normalizeUser(payload?.user ?? payload);
-
-      if (!resolvedUser) {
-        throw new Error("Could not load current user.");
-      }
-
       setUser(resolvedUser);
       setStatus("signed_in");
-    } catch (error) {
-      console.log("[AUTH] refreshMe failed:", error);
+    } catch {
       await applySignedOutState();
     }
   }, [applySignedOutState]);
@@ -139,22 +136,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAccessTokenState(token);
 
         const payload = await authApi.me();
+        const resolvedUser = normalizeUser((payload as any)?.user ?? payload);
 
-        if ((payload as any)?.error === "unauthorized") {
+        if (!resolvedUser) {
           await applySignedOutState();
           return;
         }
 
-        const resolvedUser = normalizeUser(payload?.user ?? payload);
-
-        if (!resolvedUser) {
-          throw new Error("User not found.");
-        }
-
         setUser(resolvedUser);
         setStatus("signed_in");
-      } catch (error) {
-        console.log("[AUTH] bootstrap failed:", error);
+      } catch {
         await applySignedOutState();
       }
     };

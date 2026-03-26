@@ -29,6 +29,7 @@ const { toSafeError } = require('./lib/errors');
 const { initPersistence } = require('./data/store');
 const { initSentry, getSentry } = require('./lib/sentry');
 const {
+  GENERATED_AUDIO_DIR,
   transcribeAudioFile,
   generateInterviewTurn,
   synthesizeSpeechToFile,
@@ -197,6 +198,117 @@ function sessionPublicShape(session) {
     isComplete: session.isComplete,
     turns: session.turns,
   };
+}
+
+function normalizeScore10To100(value) {
+  const safe = Number(value || 0);
+  return Math.max(0, Math.min(100, Math.round(safe * 10)));
+}
+
+function buildLiveInterviewReport(session) {
+  const turns = Array.isArray(session.turns) ? session.turns : [];
+  const avg = (key) => {
+    if (!turns.length) return 0;
+    const total = turns.reduce((sum, item) => sum + Number(item.feedback?.[key] || 0), 0);
+    return Math.round((total / turns.length) * 10) / 10;
+  };
+
+  const clarityAvg = avg('clarity');
+  const structureAvg = avg('structure');
+  const relevanceAvg = avg('relevance');
+  const latestTurn = turns[turns.length - 1] || null;
+
+  const transcript = [];
+  for (const turn of turns) {
+    if (turn.question) transcript.push({ speaker: 'coach', text: turn.question });
+    if (turn.answerText) transcript.push({ speaker: 'user', text: turn.answerText });
+    if (turn.coachReply) transcript.push({ speaker: 'coach', text: turn.coachReply });
+  }
+
+  const strengths = turns.length
+    ? [
+        clarityAvg >= 7 ? 'Your answers were generally clear and easy to follow.' : 'You showed relevant experience that can become much stronger with cleaner delivery.',
+        relevanceAvg >= 7 ? 'Your examples stayed aligned with the role and sounded believable.' : 'Your examples had useful substance and can be made more role-specific.',
+        'You completed a realistic recruiter-style practice flow instead of isolated one-off questions.',
+      ]
+    : ['No interview answers have been submitted yet.'];
+
+  const improvementAreas = turns.length
+    ? [
+        structureAvg >= 7 ? 'Keep ending answers with a sharper business result.' : 'Tighten your STAR structure so the listener can follow the story faster.',
+        'Use at least one measurable result or specific outcome in your strongest stories.',
+        'Trim long setup sentences and move faster into your action.',
+      ]
+    : ['Start a live interview session to generate actionable improvement areas.'];
+
+  const personalizedTips = turns.length
+    ? [
+        `For ${session.targetRole}, lead with one sentence of context, then spend most of the answer on your action and result.`,
+        'When the recruiter asks a behavioral question, avoid generic claims and name the exact task, stakeholders, and result.',
+        'Practice two versions of your strongest story: a 45-second version and a 90-second version.',
+      ]
+    : ['Add a target role and complete one recruiter simulation to unlock personalized tips.'];
+
+  const nextPracticePlan = turns.length
+    ? [
+        'Redo one weak answer and make the result sentence much stronger.',
+        'Practice one conflict story using a strict STAR structure.',
+        'Record one concise tell me about yourself answer and listen for pacing.',
+      ]
+    : ['Start with a five-question recruiter simulation.'];
+
+  const fillerWordCount = turns.reduce((count, turn) => {
+    const text = String(turn.answerText || '').toLowerCase();
+    const matches = text.match(/\b(um|uh|like|you know|actually|basically)\b/g);
+    return count + (matches ? matches.length : 0);
+  }, 0);
+
+  return {
+    sessionId: session.sessionId,
+    summary: turns.length
+      ? `You completed a ${session.targetRole} recruiter simulation. Your answers have real substance, and the next gain comes from tighter structure, stronger result statements, and more direct recruiter-ready phrasing.`
+      : 'No interview answers have been submitted yet.',
+    strengths,
+    improvementAreas,
+    personalizedTips,
+    nextPracticePlan,
+    transcript,
+    scores: {
+      clarity: normalizeScore10To100(clarityAvg),
+      relevance: normalizeScore10To100(relevanceAvg),
+      star: normalizeScore10To100(structureAvg),
+      confidence: normalizeScore10To100((clarityAvg + relevanceAvg) / 2),
+    },
+    fillerWordCount,
+    suggestedImprovedAnswer:
+      latestTurn?.feedback?.strongerSampleAnswer ||
+      'Use a concise STAR structure: brief context, clear action, and a concrete result.',
+    raw: {
+      totalQuestions: session.totalQuestions,
+      completedTurns: turns.length,
+      averages: {
+        clarity: clarityAvg,
+        structure: structureAvg,
+        relevance: relevanceAvg,
+      },
+    },
+  };
+}
+
+function completeLiveInterviewHandler(req, res) {
+  try {
+    const sessionId = normalizeString(req.body?.sessionId || req.params?.sessionId);
+    const session = liveInterviewSessions.get(sessionId);
+
+    if (!session) {
+      return res.status(404).json({ error: 'Interview session not found' });
+    }
+
+    return res.status(200).json(buildLiveInterviewReport(session));
+  } catch (error) {
+    console.error('live interview complete error:', error);
+    return res.status(500).json({ error: 'Failed to generate interview report' });
+  }
 }
 
 async function startLiveInterviewHandler(req, res) {
@@ -402,34 +514,7 @@ function reportLiveInterviewHandler(req, res) {
       return res.status(404).json({ error: 'Interview session not found' });
     }
 
-    const turns = Array.isArray(session.turns) ? session.turns : [];
-    const avg = (key) => {
-      if (!turns.length) return 0;
-      const total = turns.reduce((sum, item) => sum + Number(item.feedback?.[key] || 0), 0);
-      return Math.round((total / turns.length) * 10) / 10;
-    };
-
-    return res.status(200).json({
-      sessionId: session.sessionId,
-      targetRole: session.targetRole,
-      companyName: session.companyName,
-      interviewType: session.interviewType,
-      difficulty: session.difficulty,
-      coachTone: session.coachTone,
-      isComplete: session.isComplete,
-      totalQuestions: session.totalQuestions,
-      completedTurns: turns.length,
-      averages: {
-        clarity: avg('clarity'),
-        structure: avg('structure'),
-        relevance: avg('relevance'),
-      },
-      summary:
-        turns.length > 0
-          ? 'You completed an AI recruiter interview. Improve precision, examples, and results-focused storytelling.'
-          : 'No interview answers have been submitted yet.',
-      turns,
-    });
+    return res.status(200).json(buildLiveInterviewReport(session));
   } catch (error) {
     console.error('live interview report error:', error);
     return res.status(500).json({ error: 'Failed to fetch interview report' });
@@ -614,6 +699,30 @@ app.get('/api/interview/live/report/:sessionId', reportLiveInterviewHandler);
 
 app.get('/interview/live/session/:sessionId', sessionLiveInterviewHandler);
 app.get('/api/interview/live/session/:sessionId', sessionLiveInterviewHandler);
+
+app.post('/interview/live/complete', completeLiveInterviewHandler);
+app.post('/api/interview/live/complete', completeLiveInterviewHandler);
+
+app.get('/downloads/live-interview/:filename', (req, res) => {
+  const filename = path.basename(String(req.params.filename || ''));
+  const absolutePath = path.join(GENERATED_AUDIO_DIR, filename);
+
+  if (!fs.existsSync(absolutePath)) {
+    return res.status(404).json({ error: 'Audio file not found' });
+  }
+
+  return res.sendFile(absolutePath);
+});
+app.get('/api/downloads/live-interview/:filename', (req, res) => {
+  const filename = path.basename(String(req.params.filename || ''));
+  const absolutePath = path.join(GENERATED_AUDIO_DIR, filename);
+
+  if (!fs.existsSync(absolutePath)) {
+    return res.status(404).json({ error: 'Audio file not found' });
+  }
+
+  return res.sendFile(absolutePath);
+});
 
 // AUTH
 app.use('/auth', authRoutes);

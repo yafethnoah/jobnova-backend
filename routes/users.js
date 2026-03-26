@@ -1,6 +1,5 @@
 const express = require('express');
-const { requireAuth } = require('../middleware/auth');
-const { updateUser, saveState } = require('../data/store');
+const jwt = require('jsonwebtoken');
 
 const router = express.Router();
 
@@ -19,6 +18,59 @@ function normalizeBool(value, fallback = false) {
   return fallback;
 }
 
+function getStore() {
+  try {
+    return require('../data/store');
+  } catch {
+    return {};
+  }
+}
+
+function getUsersArrayFromStore(storeModule) {
+  if (!storeModule) return [];
+
+  if (Array.isArray(storeModule.users)) return storeModule.users;
+  if (storeModule.state && Array.isArray(storeModule.state.users)) {
+    return storeModule.state.users;
+  }
+  if (
+    typeof storeModule.getState === 'function' &&
+    Array.isArray(storeModule.getState()?.users)
+  ) {
+    return storeModule.getState().users;
+  }
+
+  return [];
+}
+
+function ensureUsersArray(storeModule) {
+  if (!storeModule) return [];
+
+  if (Array.isArray(storeModule.users)) return storeModule.users;
+
+  if (storeModule.state) {
+    if (!Array.isArray(storeModule.state.users)) storeModule.state.users = [];
+    return storeModule.state.users;
+  }
+
+  if (typeof storeModule.getState === 'function') {
+    const state = storeModule.getState();
+    if (!Array.isArray(state.users)) state.users = [];
+    return state.users;
+  }
+
+  storeModule.users = [];
+  return storeModule.users;
+}
+
+function persistStore(storeModule) {
+  try {
+    if (typeof storeModule.saveState === 'function') {
+      storeModule.saveState();
+    }
+  } catch {}
+}
+
 function toSafeUser(record = {}) {
   return {
     id: record.id,
@@ -27,13 +79,50 @@ function toSafeUser(record = {}) {
     onboardingCompleted: Boolean(record.onboardingCompleted),
     onboarding: record.onboarding || null,
     preferences: record.preferences || {},
-    targetRole: record.targetRole || '',
-    location: record.location || '',
-    summary: record.summary || '',
-    authProvider: record.authProvider || 'local',
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
+}
+
+function getTokenFromRequest(req) {
+  const authHeader = normalizeText(req.headers.authorization, '');
+  if (!authHeader.startsWith('Bearer ')) return '';
+  return authHeader.slice(7).trim();
+}
+
+function verifyToken(token) {
+  const secret =
+    process.env.JWT_SECRET || 'change_this_to_a_long_random_string';
+  return jwt.verify(token, secret);
+}
+
+function findAuthenticatedUser(req) {
+  const token = getTokenFromRequest(req);
+  if (!token) {
+    return { error: 'Missing access token.', status: 401 };
+  }
+
+  let decoded;
+  try {
+    decoded = verifyToken(token);
+  } catch {
+    return { error: 'Invalid or expired access token.', status: 401 };
+  }
+
+  const userId = String(decoded?.sub || '');
+  if (!userId) {
+    return { error: 'Invalid token payload.', status: 401 };
+  }
+
+  const storeModule = getStore();
+  const users = ensureUsersArray(storeModule);
+  const user = users.find((item) => String(item.id) === userId);
+
+  if (!user) {
+    return { error: 'User not found.', status: 404 };
+  }
+
+  return { user, storeModule, users };
 }
 
 function buildOnboardingPayload(body = {}) {
@@ -70,94 +159,154 @@ function buildPreferencesPayload(body = {}) {
   };
 }
 
-router.use(requireAuth);
-
+// GET /api/users/me
 router.get('/me', async (req, res) => {
-  return res.status(200).json({ ok: true, user: toSafeUser(req.user) });
+  try {
+    const auth = findAuthenticatedUser(req);
+    if (auth.error) {
+      return res.status(auth.status).json({ message: auth.error });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      user: toSafeUser(auth.user),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: error?.message || 'Could not load user profile.',
+    });
+  }
 });
 
+// POST /api/users/onboarding
 router.post('/onboarding', async (req, res) => {
   try {
+    const auth = findAuthenticatedUser(req);
+    if (auth.error) {
+      return res.status(auth.status).json({ message: auth.error });
+    }
+
     const onboarding = buildOnboardingPayload(req.body || {});
-    const currentUser = req.user || {};
-    const userData = req.userData || {};
+    const user = auth.user;
 
-    userData.onboarding = onboarding;
+    user.onboarding = onboarding;
+    user.onboardingCompleted = true;
+    user.updatedAt = new Date().toISOString();
 
-    const updatedUser = updateUser(currentUser.id, {
-      onboardingCompleted: true,
-      targetRole: onboarding.targetRole || currentUser.targetRole || '',
-      location: [onboarding.city, onboarding.province, onboarding.country]
-        .filter(Boolean)
-        .join(', '),
-    });
-
-    await saveState();
+    persistStore(auth.storeModule);
 
     return res.status(200).json({
       ok: true,
       message: 'Onboarding saved successfully.',
-      user: toSafeUser({ ...updatedUser, onboarding }),
+      user: toSafeUser(user),
     });
   } catch (error) {
-    return res.status(500).json({ message: error?.message || 'Could not save onboarding.' });
+    return res.status(500).json({
+      message: error?.message || 'Could not save onboarding.',
+    });
   }
 });
 
+// PATCH /api/users/profile
 router.patch('/profile', async (req, res) => {
   try {
-    const currentUser = req.user || {};
-    const fullName = normalizeText(req.body?.fullName, currentUser.fullName || '');
-    const targetRole = normalizeText(req.body?.targetRole, currentUser.targetRole || '');
-    const location = normalizeText(req.body?.location, currentUser.location || '');
-    const summary = normalizeText(req.body?.summary, currentUser.summary || '');
+    const auth = findAuthenticatedUser(req);
+    if (auth.error) {
+      return res.status(auth.status).json({ message: auth.error });
+    }
 
-    const updatedUser = updateUser(currentUser.id, {
-      fullName: fullName || currentUser.fullName,
-      targetRole,
-      location,
-      summary,
-    });
+    const user = auth.user;
 
-    await saveState();
+    const fullName = normalizeText(req.body?.fullName, user.fullName || '');
+    const email = normalizeText(req.body?.email, user.email || '').toLowerCase();
+
+    if (!email) {
+      return res.status(400).json({
+        message: 'Email is required.',
+      });
+    }
+
+    const duplicate = auth.users.find(
+      (item) =>
+        String(item.id) !== String(user.id) &&
+        String(item.email || '').toLowerCase() === email
+    );
+
+    if (duplicate) {
+      return res.status(409).json({
+        message: 'Another user already uses this email.',
+      });
+    }
+
+    user.fullName = fullName || user.fullName;
+    user.email = email;
+    user.updatedAt = new Date().toISOString();
+
+    persistStore(auth.storeModule);
 
     return res.status(200).json({
       ok: true,
       message: 'Profile updated successfully.',
-      user: toSafeUser({ ...updatedUser, onboarding: req.userData?.onboarding || null, preferences: req.userData?.preferences || {} }),
+      user: toSafeUser(user),
     });
   } catch (error) {
-    return res.status(500).json({ message: error?.message || 'Could not update profile.' });
+    return res.status(500).json({
+      message: error?.message || 'Could not update profile.',
+    });
   }
 });
 
+// PATCH /api/users/preferences
 router.patch('/preferences', async (req, res) => {
   try {
-    const userData = req.userData || {};
-    const currentPreferences = userData.preferences && typeof userData.preferences === 'object'
-      ? userData.preferences
-      : {};
+    const auth = findAuthenticatedUser(req);
+    if (auth.error) {
+      return res.status(auth.status).json({ message: auth.error });
+    }
 
-    userData.preferences = {
+    const user = auth.user;
+    const currentPreferences =
+      user.preferences && typeof user.preferences === 'object'
+        ? user.preferences
+        : {};
+
+    user.preferences = {
       ...currentPreferences,
       ...buildPreferencesPayload(req.body || {}),
     };
+    user.updatedAt = new Date().toISOString();
 
-    await saveState();
+    persistStore(auth.storeModule);
 
     return res.status(200).json({
       ok: true,
       message: 'Preferences updated successfully.',
-      preferences: userData.preferences,
-      user: toSafeUser({ ...req.user, onboarding: userData.onboarding || null, preferences: userData.preferences }),
+      user: toSafeUser(user),
     });
   } catch (error) {
-    return res.status(500).json({ message: error?.message || 'Could not update preferences.' });
+    return res.status(500).json({
+      message: error?.message || 'Could not update preferences.',
+    });
   }
 });
 
+// GET /api/users/preferences
 router.get('/preferences', async (req, res) => {
-  return res.status(200).json({ ok: true, preferences: req.userData?.preferences || {} });
+  try {
+    const auth = findAuthenticatedUser(req);
+    if (auth.error) {
+      return res.status(auth.status).json({ message: auth.error });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      preferences: auth.user.preferences || {},
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: error?.message || 'Could not load preferences.',
+    });
+  }
 });
 
 module.exports = router;

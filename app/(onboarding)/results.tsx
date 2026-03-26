@@ -10,7 +10,7 @@ import { useOnboardingStore } from "@/src/features/onboarding/onboardingStore";
 import { onboardingApi } from "@/src/api/onboarding";
 
 export default function OnboardingResultsScreen() {
-  const { accessToken, signOut, markOnboardingComplete } = useAuth();
+  const { accessToken, signOut } = useAuth();
   const { answers } = useOnboardingStore();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -39,17 +39,9 @@ export default function OnboardingResultsScreen() {
         urgencyLevel: answers.urgencyLevel || "medium",
       };
 
-      const saveResult = await onboardingApi.saveAnswers(payload);
-      if ((saveResult as any)?.error === "unauthorized") {
-        throw new Error("Unauthorized");
-      }
+      await onboardingApi.saveAnswers(accessToken, payload);
+      await onboardingApi.generateCareerPath(accessToken, payload);
 
-      const pathResult = await onboardingApi.generateCareerPath();
-      if ((pathResult as any)?.error === "unauthorized") {
-        throw new Error("Unauthorized");
-      }
-
-      markOnboardingComplete();
       router.replace("/(app)/home");
     } catch (err) {
       const message =
@@ -109,10 +101,8 @@ export default function OnboardingResultsScreen() {
       ) : null}
 
       <AppButton
-        label={submitting ? "Finishing..." : "Go to my dashboard"}
-        onPress={() => {
-          void handleFinish();
-        }}
+        label={submitting ? "Finishing..." : "Enter JobNova"}
+        onPress={() => void handleFinish()}
         disabled={submitting}
       />
     </AppScreen>

@@ -21,7 +21,7 @@ export default function Step2BackgroundScreen() {
 
     if (accessToken) {
       try {
-        await onboardingApi.saveAnswers({ profession: value });
+        await onboardingApi.saveAnswers(accessToken, { profession: value });
       } catch {
         // keep moving with local state
       }
@@ -48,13 +48,7 @@ export default function Step2BackgroundScreen() {
         autoCapitalize="words"
       />
 
-      <AppButton
-        label="Continue"
-        onPress={() => {
-          void handleNext();
-        }}
-        disabled={!profession.trim()}
-      />
+      <AppButton label="Continue" onPress={() => void handleNext()} disabled={!profession.trim()} />
     </AppScreen>
   );
 }

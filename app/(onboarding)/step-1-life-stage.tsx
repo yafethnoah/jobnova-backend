@@ -12,7 +12,7 @@ const options = [
   "Student or recent graduate",
   "Internationally experienced professional",
   "Career changer",
-  "Returning to work",
+  "Returning to work"
 ];
 
 export default function Step1LifeStageScreen() {
@@ -24,9 +24,9 @@ export default function Step1LifeStageScreen() {
 
     if (accessToken) {
       try {
-        await onboardingApi.saveAnswers({ lifeStage: value });
+        await onboardingApi.saveAnswers(accessToken, { lifeStage: value });
       } catch {
-        // keep local state even if API save fails
+        // local state still preserved
       }
     }
   }

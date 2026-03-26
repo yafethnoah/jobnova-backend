@@ -1,273 +1,194 @@
-import React, { useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { router } from "expo-router";
-import { optionalAuthApiRequest } from "@/src/api/client";
+import { useMemo, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useMutation } from '@tanstack/react-query';
+import { Text, View } from 'react-native';
 
-type RecruiterVoice = "verse" | "alloy" | "nova";
-type PlaybackMode = "auto" | "manual" | "muted";
+import { AppButton } from '@/src/components/ui/AppButton';
+import { AppCard } from '@/src/components/ui/AppCard';
+import { AppInput } from '@/src/components/ui/AppInput';
+import { AppScreen } from '@/src/components/ui/AppScreen';
+import { ErrorState } from '@/src/components/ui/ErrorState';
+import { StatusChip } from '@/src/components/ui/StatusChip';
+import { LoadingView } from '@/src/components/ui/LoadingView';
+import { liveInterviewApi } from '@/src/api/liveInterview';
+import { useAuth } from '@/src/features/auth/useAuth';
+import { saveJson } from '@/src/lib/localCache';
+import { LIVE_INTERVIEW_REPORT_CACHE_KEY } from '@/src/features/interview/interview.cache';
+import type { VoiceInterviewSetup } from '@/src/features/interview/liveInterview.types';
+import { colors } from '@/src/constants/colors';
 
-type VoiceOption = {
-  key: RecruiterVoice;
-  label: string;
-  description: string;
+type TurnCard = {
+  question: string;
+  answer: string;
+  coachReply: string;
+  nextQuestion: string | null;
+  scores: { clarity: number; structure: number; relevance: number };
 };
 
-type PlaybackOption = {
-  key: PlaybackMode;
-  label: string;
-  description: string;
-};
+export default function LiveInterviewSessionScreen() {
+  const { accessToken } = useAuth();
+  const params = useLocalSearchParams<{
+    sessionId: string;
+    firstQuestion: string;
+    totalQuestions: string;
+    targetRole: string;
+    companyName?: string;
+    interviewType?: string;
+    difficulty?: string;
+    coachTone?: string;
+    recruiterVoice?: string;
+    speakerMode?: string;
+    microphoneMode?: string;
+    recordingQuality?: string;
+    audioUrl?: string;
+  }>();
 
-const VOICE_OPTIONS: VoiceOption[] = [
-  { key: "verse", label: "Verse", description: "Balanced and natural." },
-  { key: "alloy", label: "Alloy", description: "Clear and steady." },
-  { key: "nova", label: "Nova", description: "Warm and polished." },
-];
+  const [answerText, setAnswerText] = useState('');
+  const [currentQuestion, setCurrentQuestion] = useState(String(params.firstQuestion || ''));
+  const [turns, setTurns] = useState<TurnCard[]>([]);
+  const [latestAudioUrl, setLatestAudioUrl] = useState<string>(String(params.audioUrl || ''));
 
-const PLAYBACK_OPTIONS: PlaybackOption[] = [
-  { key: "auto", label: "Auto", description: "Play recruiter voice when ready." },
-  { key: "manual", label: "Manual", description: "Tap to play each prompt." },
-  { key: "muted", label: "Muted", description: "Text-only recruiter prompts." },
-];
+  const totalQuestions = Number(params.totalQuestions || 5);
+  const completedTurns = turns.length;
+  const progressLabel = `${Math.min(completedTurns + 1, totalQuestions)} / ${totalQuestions}`;
 
-export default function LiveSessionScreen() {
-  const [selectedVoice, setSelectedVoice] = useState<RecruiterVoice>("verse");
-  const [playbackMode, setPlaybackMode] = useState<PlaybackMode>("auto");
-  const [starting, setStarting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const setup = useMemo<VoiceInterviewSetup>(() => ({
+    targetRole: String(params.targetRole || ''),
+    companyName: params.companyName ? String(params.companyName) : undefined,
+    interviewType: (params.interviewType as any) || 'behavioral',
+    difficulty: (params.difficulty as any) || 'medium',
+    coachTone: (params.coachTone as any) || 'realistic',
+    recruiterVoice: (params.recruiterVoice as any) || 'verse',
+    speakerMode: (params.speakerMode as any) || 'auto',
+    microphoneMode: (params.microphoneMode as any) || 'voice_preferred',
+    recordingQuality: (params.recordingQuality as any) || 'high',
+  }), [params]);
 
-  const encouragement = useMemo(
-    () =>
-      "Every practice round sharpens your story. Confidence grows when preparation becomes a habit.",
-    []
-  );
+  const respondMutation = useMutation({
+    mutationFn: () =>
+      liveInterviewApi.respond(accessToken, String(params.sessionId || ''), {
+        answerText: answerText.trim(),
+        recruiterVoice: setup.recruiterVoice,
+      }),
+    onSuccess: (data: any) => {
+      const nextTurn: TurnCard = {
+        question: currentQuestion,
+        answer: answerText.trim(),
+        coachReply: String(data.coachReply || ''),
+        nextQuestion: data.nextQuestion ? String(data.nextQuestion) : null,
+        scores: {
+          clarity: Number(data.feedback?.clarity || 0),
+          structure: Number(data.feedback?.structure || 0),
+          relevance: Number(data.feedback?.relevance || 0),
+        },
+      };
 
-  const handleStartInterview = async () => {
-    try {
-      setStarting(true);
-      setError(null);
+      setTurns((prev) => [...prev, nextTurn]);
+      setAnswerText('');
+      setLatestAudioUrl(typeof data.audioUrl === 'string' ? data.audioUrl : '');
 
-      const payload = await optionalAuthApiRequest("/interview/start", "POST", {
-        voice: selectedVoice,
-        playbackMode,
-      });
-
-      if (payload?.error === "unauthorized") {
-        Alert.alert("Session expired", "Please sign in again.");
-        router.replace("/auth");
+      if (data.isComplete) {
+        completeMutation.mutate();
         return;
       }
 
-      router.push({
-        pathname: "/(app)/interview/session",
+      setCurrentQuestion(String(data.nextQuestion || ''));
+    },
+  });
+
+  const completeMutation = useMutation({
+    mutationFn: () => liveInterviewApi.complete(accessToken, String(params.sessionId || ''), setup),
+    onSuccess: async (data) => {
+      await saveJson(LIVE_INTERVIEW_REPORT_CACHE_KEY, data);
+      router.replace({
+        pathname: '/(app)/interview/live-report',
         params: {
-          voice: selectedVoice,
-          playbackMode,
+          sessionId: String(params.sessionId || ''),
+          targetRole: setup.targetRole,
+          companyName: setup.companyName || '',
+          interviewType: setup.interviewType,
+          difficulty: setup.difficulty,
+          coachTone: setup.coachTone,
         },
       });
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Could not start live interview.";
-      console.error("[INTERVIEW] start failed:", err);
-      setError(message);
-    } finally {
-      setStarting(false);
-    }
-  };
+    },
+  });
+
+  if (completeMutation.isPending) {
+    return <LoadingView label='Generating your recruiter-style interview report...' />;
+  }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Recruiter voice</Text>
+    <AppScreen>
+      <Text style={{ fontSize: 30, fontWeight: '800', color: colors.text }}>Live recruiter interview</Text>
+      <Text style={{ fontSize: 16, lineHeight: 24, color: colors.muted }}>
+        This flow keeps the interview structured, realistic, and recruiter-style. For the most human sound, keep live API mode on and make sure your backend has an OpenAI API key configured.
+      </Text>
 
-        <View style={styles.optionGrid}>
-          {VOICE_OPTIONS.map((option) => {
-            const active = selectedVoice === option.key;
-            return (
-              <Pressable
-                key={option.key}
-                style={[styles.optionCard, active && styles.optionCardActive]}
-                onPress={() => setSelectedVoice(option.key)}
-              >
-                <Text style={[styles.optionTitle, active && styles.optionTitleActive]}>
-                  {option.label}
-                </Text>
-                <Text
-                  style={[
-                    styles.optionDescription,
-                    active && styles.optionDescriptionActive,
-                  ]}
-                >
-                  {option.description}
-                </Text>
-              </Pressable>
-            );
-          })}
+      <AppCard>
+        <View style={{ gap: 12 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            <StatusChip label={setup.targetRole || 'Target role missing'} tone='primary' />
+            <StatusChip label={`Question ${progressLabel}`} tone='neutral' />
+            <StatusChip label={setup.recruiterVoice || 'verse'} tone='success' />
+            <StatusChip label={latestAudioUrl ? 'AI voice ready' : 'Audio optional'} tone={latestAudioUrl ? 'success' : 'warning'} />
+          </View>
+          <Text style={{ fontSize: 20, fontWeight: '800', color: colors.text }}>Current question</Text>
+          <Text style={{ color: colors.text, lineHeight: 26, fontSize: 17 }}>{currentQuestion}</Text>
+          {latestAudioUrl ? (
+            <Text style={{ color: colors.primarySoft, lineHeight: 22 }}>
+              Recruiter audio was generated on the backend for this turn. If you want automatic playback next, wire this screen to your preferred audio player.
+            </Text>
+          ) : null}
         </View>
+      </AppCard>
 
-        <Text style={[styles.sectionTitle, styles.sectionSpacing]}>Playback mode</Text>
-
-        <View style={styles.optionGrid}>
-          {PLAYBACK_OPTIONS.map((option) => {
-            const active = playbackMode === option.key;
-            return (
-              <Pressable
-                key={option.key}
-                style={[styles.optionCard, active && styles.optionCardActive]}
-                onPress={() => setPlaybackMode(option.key)}
-              >
-                <Text style={[styles.optionTitle, active && styles.optionTitleActive]}>
-                  {option.label}
-                </Text>
-                <Text
-                  style={[
-                    styles.optionDescription,
-                    active && styles.optionDescriptionActive,
-                  ]}
-                >
-                  {option.description}
-                </Text>
-              </Pressable>
-            );
-          })}
+      <AppCard>
+        <View style={{ gap: 16 }}>
+          <AppInput
+            label='Your answer'
+            value={answerText}
+            onChangeText={setAnswerText}
+            placeholder='Answer as if you were speaking to a real recruiter.'
+            multiline
+            autoCapitalize='sentences'
+          />
+          <AppButton
+            label={respondMutation.isPending ? 'Sending answer...' : 'Submit answer'}
+            onPress={() => answerText.trim() && respondMutation.mutate()}
+            disabled={respondMutation.isPending || completeMutation.isPending || !answerText.trim()}
+          />
+          <AppButton label='Exit session' variant='secondary' onPress={() => router.back()} disabled={respondMutation.isPending || completeMutation.isPending} />
         </View>
-      </View>
+      </AppCard>
 
-      {error ? (
-        <View style={[styles.card, styles.errorCard]}>
-          <Text style={styles.errorTitle}>Could not start live interview</Text>
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
+      {respondMutation.isError ? (
+        <ErrorState
+          title='Could not process answer'
+          message={respondMutation.error instanceof Error ? respondMutation.error.message : 'Unknown error'}
+        />
       ) : null}
 
-      <View style={styles.card}>
-        <Text style={styles.encouragementTitle}>Daily Encouragement</Text>
-        <Text style={styles.encouragementText}>{encouragement}</Text>
-
-        <Pressable
-          style={[styles.primaryButton, starting && styles.primaryButtonDisabled]}
-          onPress={handleStartInterview}
-          disabled={starting}
-        >
-          <Text style={styles.primaryButtonText}>
-            {starting ? "Starting..." : "Start live interview"}
-          </Text>
-        </Pressable>
-
-        <Pressable style={styles.secondaryButton} onPress={() => router.back()}>
-          <Text style={styles.secondaryButtonText}>Back</Text>
-        </Pressable>
-      </View>
-    </ScrollView>
+      {turns.length ? (
+        <AppCard>
+          <View style={{ gap: 12 }}>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: colors.text }}>Latest recruiter feedback</Text>
+            {(() => {
+              const latest = turns[turns.length - 1];
+              return (
+                <>
+                  <Text style={{ color: colors.muted, lineHeight: 22 }}>{latest.coachReply}</Text>
+                  <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                    <StatusChip label={`Clarity ${latest.scores.clarity}/10`} tone='primary' />
+                    <StatusChip label={`Structure ${latest.scores.structure}/10`} tone='warning' />
+                    <StatusChip label={`Relevance ${latest.scores.relevance}/10`} tone='success' />
+                  </View>
+                </>
+              );
+            })()}
+          </View>
+        </AppCard>
+      ) : null}
+    </AppScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flexGrow: 1,
-    backgroundColor: "#081120",
-    padding: 16,
-    paddingBottom: 32,
-    gap: 12,
-  },
-  card: {
-    backgroundColor: "#0E1A33",
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#1D2D57",
-  },
-  sectionTitle: {
-    color: "#EAF0FF",
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 12,
-  },
-  sectionSpacing: {
-    marginTop: 8,
-  },
-  optionGrid: {
-    gap: 10,
-  },
-  optionCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#223664",
-    backgroundColor: "#132243",
-    padding: 12,
-  },
-  optionCardActive: {
-    backgroundColor: "#7785FF",
-    borderColor: "#93A0FF",
-  },
-  optionTitle: {
-    color: "#F3F6FF",
-    fontSize: 15,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  optionTitleActive: {
-    color: "#FFFFFF",
-  },
-  optionDescription: {
-    color: "#AEBBDF",
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  optionDescriptionActive: {
-    color: "#EEF1FF",
-  },
-  errorCard: {
-    borderColor: "#5B2940",
-    backgroundColor: "#101B36",
-  },
-  errorTitle: {
-    color: "#FF8F8F",
-    fontSize: 18,
-    fontWeight: "800",
-    marginBottom: 8,
-  },
-  errorText: {
-    color: "#D9E2FF",
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  encouragementTitle: {
-    color: "#FFFFFF",
-    fontSize: 17,
-    fontWeight: "800",
-    marginBottom: 8,
-  },
-  encouragementText: {
-    color: "#B9C4E7",
-    fontSize: 14,
-    lineHeight: 21,
-    marginBottom: 16,
-  },
-  primaryButton: {
-    backgroundColor: "#7C88FF",
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  primaryButtonDisabled: {
-    opacity: 0.7,
-  },
-  primaryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  secondaryButton: {
-    backgroundColor: "#16284C",
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  secondaryButtonText: {
-    color: "#E7ECFF",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-});

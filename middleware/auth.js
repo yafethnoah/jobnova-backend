@@ -20,7 +20,11 @@ function extractToken(headerValue = '') {
 
 function signAppJwt(user) {
   return jwt.sign(
-    { sub: user.id, email: user.email, authProvider: user.authProvider || 'local' },
+    {
+      sub: user.id,
+      email: user.email,
+      authProvider: user.authProvider || 'local',
+    },
     env.JWT_SECRET,
     { expiresIn: env.JWT_EXPIRES_IN }
   );
@@ -50,15 +54,13 @@ async function resolveLocalToken(token) {
   if (!decoded?.sub) return null;
 
   const { user } = await preloadUser(decoded.sub);
-  if (user) {
-    return {
-      user,
-      tokenType: 'app-jwt',
-      appToken: token,
-    };
-  }
+  if (!user) return null;
 
-  return null;
+  return {
+    user,
+    tokenType: 'app-jwt',
+    appToken: token,
+  };
 }
 
 async function resolveSupabaseToken(token) {
@@ -69,7 +71,10 @@ async function resolveSupabaseToken(token) {
 
   try {
     const { data, error } = await supabase.auth.getUser(token);
-    if (error || !data?.user?.email) return null;
+
+    if (error || !data?.user?.email) {
+      return null;
+    }
 
     const attached = await attachExternalUser({
       id: data.user.id,
@@ -94,16 +99,6 @@ async function resolveSupabaseToken(token) {
   }
 }
 
-async function resolveBearerUser(token) {
-  const local = await resolveLocalToken(token);
-  if (local) return local.user;
-
-  const supabase = await resolveSupabaseToken(token);
-  if (supabase) return supabase.user;
-
-  return null;
-}
-
 async function hydrateRequestAuth(req, options = { required: false }) {
   const token = extractToken(req.headers.authorization);
 
@@ -117,6 +112,7 @@ async function hydrateRequestAuth(req, options = { required: false }) {
   if (!token) {
     req.user = null;
     req.userData = ensureUserData('guest');
+
     if (options.required) {
       return {
         ok: false,
@@ -124,6 +120,7 @@ async function hydrateRequestAuth(req, options = { required: false }) {
         body: { message: 'Authorization token is required.' },
       };
     }
+
     return { ok: true };
   }
 
@@ -160,7 +157,9 @@ async function hydrateRequestAuth(req, options = { required: false }) {
     return {
       ok: false,
       status: 401,
-      body: { message: 'Authentication failed or the token is no longer valid.' },
+      body: {
+        message: 'Authentication failed or the token is no longer valid.',
+      },
     };
   }
 
@@ -170,10 +169,16 @@ async function hydrateRequestAuth(req, options = { required: false }) {
 async function requireAuth(req, res, next) {
   try {
     const result = await hydrateRequestAuth(req, { required: true });
-    if (!result.ok) return res.status(result.status).json(result.body);
+
+    if (!result.ok) {
+      return res.status(result.status).json(result.body);
+    }
+
     return next();
   } catch (error) {
-    return res.status(401).json({ message: error?.message || 'Authentication failed.' });
+    return res.status(401).json({
+      message: error?.message || 'Authentication failed.',
+    });
   }
 }
 
@@ -198,7 +203,6 @@ module.exports = {
   extractToken,
   signAppJwt,
   verifyAppJwt,
-  resolveBearerUser,
   requireAuth,
   optionalAuth,
 };

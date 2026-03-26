@@ -8,7 +8,12 @@ import type {
   SignUpPayload,
 } from "@/src/features/auth/auth.types";
 
-type MeResponse = SessionUser | { user?: SessionUser | null; auth?: unknown };
+type MeResponse =
+  | SessionUser
+  | {
+      ok?: boolean;
+      user?: SessionUser | null;
+    };
 
 function normalizeUser(candidate: unknown): SessionUser {
   if (!candidate || typeof candidate !== "object") {
@@ -48,7 +53,9 @@ function normalizeAuthResponse(payload: AuthResponse): AuthResponse {
 }
 
 function normalizeMeResponse(payload: MeResponse): SessionUser {
-  const candidate = (payload as { user?: SessionUser | null })?.user ?? payload;
+  const candidate =
+    (payload as { user?: SessionUser | null })?.user ?? payload;
+
   return normalizeUser(candidate);
 }
 
@@ -84,9 +91,10 @@ export const authApi = {
       return mockAuthApi.me();
     }
 
-    const payload = await apiRequest<MeResponse>("/auth/me", {
+    const payload = await apiRequest<MeResponse>("/users/me", {
+      method: "GET",
       token,
-      timeoutMs: 3000,
+      disableApiPrefixFallback: true,
     });
 
     return normalizeMeResponse(payload);

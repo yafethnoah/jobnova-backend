@@ -4,6 +4,9 @@ try {
   // Render injects env vars directly in production
 }
 
+const { initSentry, getSentry } = require('./lib/sentry');
+initSentry();
+
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
@@ -27,7 +30,6 @@ const { requestContext } = require('./middleware/requestContext');
 const { trackError, trackRequest } = require('./lib/telemetry');
 const { toSafeError } = require('./lib/errors');
 const { initPersistence } = require('./data/store');
-const { initSentry, getSentry } = require('./lib/sentry');
 const {
   GENERATED_AUDIO_DIR,
   transcribeAudioFile,
@@ -50,8 +52,6 @@ const { atsRouter } = require('./routes/ats');
 const { exportRouter } = require('./routes/export');
 const { interviewRealtimeRouter } = require('./routes/interviewRealtime');
 const { jobsRouter } = require('./routes/jobs');
-
-initSentry();
 
 const app = express();
 const sentry = getSentry();
@@ -257,11 +257,40 @@ function buildLiveInterviewReport(session) {
       ]
     : ['Start with a five-question recruiter simulation.'];
 
+  const answerWordCounts = turns
+    .map((turn) => String(turn.answerText || '').trim().split(/\s+/).filter(Boolean).length)
+    .filter(Boolean);
+  const fillerPatternMap = {};
   const fillerWordCount = turns.reduce((count, turn) => {
     const text = String(turn.answerText || '').toLowerCase();
     const matches = text.match(/\b(um|uh|like|you know|actually|basically)\b/g);
+    (matches || []).forEach((item) => {
+      fillerPatternMap[item] = (fillerPatternMap[item] || 0) + 1;
+    });
     return count + (matches ? matches.length : 0);
   }, 0);
+  const avgAnswerWords = answerWordCounts.length
+    ? Math.round(answerWordCounts.reduce((sum, item) => sum + item, 0) / answerWordCounts.length)
+    : 0;
+  const starHeavyTurns = turns.filter((turn) => /\b(situation|task|action|result|first|then|outcome)\b/i.test(String(turn.answerText || ''))).length;
+  const deliveryInsights = {
+    pace:
+      avgAnswerWords >= 120
+        ? 'Detailed but at risk of running long; tighten the opening and land the result sooner.'
+        : avgAnswerWords >= 70
+          ? 'Healthy interview pace with enough context for a recruiter.'
+          : 'Concise pace; add a little more evidence so the answer feels complete.',
+    answerLength: avgAnswerWords ? `${avgAnswerWords} words on average per answer` : 'No answer length yet',
+    starCoverage: turns.length ? `${starHeavyTurns}/${turns.length} answers showed visible STAR-like structure` : 'No STAR signals yet',
+    recruiterReadiness:
+      clarityAvg >= 7 && structureAvg >= 7 && relevanceAvg >= 7
+        ? 'Ready for a realistic recruiter screen. The next gain is sharper executive polish.'
+        : 'Good practice foundation, but one more focused rehearsal would noticeably improve recruiter confidence.',
+    fillerPatterns: Object.entries(fillerPatternMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([word, count]) => `${word} (${count})`),
+  };
 
   return {
     sessionId: session.sessionId,
@@ -283,6 +312,12 @@ function buildLiveInterviewReport(session) {
     suggestedImprovedAnswer:
       latestTurn?.feedback?.strongerSampleAnswer ||
       'Use a concise STAR structure: brief context, clear action, and a concrete result.',
+    deliveryInsights,
+    momentumPlan: [
+      'Re-record your strongest answer with a 15-second shorter opening.',
+      'Add one measurable outcome to the story you would most likely use in a real screen interview.',
+      'Practice one follow-up question where you defend your decision-making under pressure.'
+    ],
     raw: {
       totalQuestions: session.totalQuestions,
       completedTurns: turns.length,
@@ -443,6 +478,8 @@ async function respondLiveInterviewHandler(req, res) {
           strength: 'Relevant answer, but make it more structured and concrete.',
           strongerSampleAnswer:
             'A stronger answer would briefly explain the situation, describe your actions, and end with the result you achieved.',
+          improvements: ['Add one concrete example.', 'Name the result more clearly.'],
+          confidenceHint: 'Slow down slightly and sound more decisive in the action step.',
         },
       };
     }
@@ -479,6 +516,8 @@ async function respondLiveInterviewHandler(req, res) {
         relevance: aiResult.feedback.relevance,
         strength: aiResult.feedback.strength,
         strongerSampleAnswer: aiResult.feedback.strongerSampleAnswer,
+        improvements: Array.isArray(aiResult.feedback.improvements) ? aiResult.feedback.improvements : [],
+        confidenceHint: typeof aiResult.feedback.confidenceHint === 'string' ? aiResult.feedback.confidenceHint : '',
       },
       recruiterVoice: normalizeString(req.body?.recruiterVoice, session.recruiterVoice),
       createdAt: new Date().toISOString(),
@@ -749,7 +788,7 @@ app.use('/resume', resumeRoutes);
 app.use('/api/resume', resumeRoutes);
 
 // JOB READY
-app.use('/assets', jobReadyRoutes);
+app.use('/job-ready', jobReadyRoutes);
 app.use('/api/job-ready', jobReadyRoutes);
 
 // LINKEDIN

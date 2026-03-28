@@ -1,17 +1,15 @@
-import { publicApiRequest, apiRequest } from "@/src/api/client";
+import { apiRequest, publicApiRequest } from "@/src/api/client";
 
-export type AuthUser = {
+type AuthUser = {
   id: string;
   email: string;
   fullName?: string;
   onboardingCompleted?: boolean;
-  onboarding?: Record<string, unknown>;
-  preferences?: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
 };
 
-export type AuthSuccessResponse = {
+type AuthResponse = {
   ok?: boolean;
   accessToken?: string;
   token?: string;
@@ -19,27 +17,27 @@ export type AuthSuccessResponse = {
   message?: string;
 };
 
-export type RegisterPayload = {
-  fullName: string;
-  email: string;
-  password: string;
-};
-
-export type LoginPayload = {
-  email: string;
-  password: string;
-};
-
 export const authApi = {
-  register: async (payload: RegisterPayload): Promise<AuthSuccessResponse> => {
-    return await publicApiRequest("/auth/register", "POST", payload);
+  register: async (payload: {
+    fullName: string;
+    email: string;
+    password: string;
+  }): Promise<AuthResponse> => {
+    return await publicApiRequest("/api/auth/register", "POST", payload);
   },
 
-  login: async (payload: LoginPayload): Promise<AuthSuccessResponse> => {
-    return await publicApiRequest("/auth/login", "POST", payload);
+  login: async (payload: {
+    email: string;
+    password: string;
+  }): Promise<AuthResponse> => {
+    return await publicApiRequest("/api/auth/login", "POST", payload);
   },
 
-  me: async (): Promise<{ ok?: boolean; user?: AuthUser; message?: string }> => {
-    return await apiRequest("/users/me", "GET");
+  me: async (): Promise<AuthResponse | { error: "unauthorized"; status: 401 }> => {
+    return await apiRequest("/api/auth/me", "POST");
+  },
+
+  logout: async (): Promise<{ ok?: boolean; message?: string }> => {
+    return await apiRequest("/api/auth/logout", "POST");
   },
 };

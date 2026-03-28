@@ -4,7 +4,7 @@ import { useAuthContext } from "@/src/features/auth/AuthProvider";
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
-function TabIcon({
+function TabBarIcon({
   name,
   color,
   size,
@@ -13,7 +13,7 @@ function TabIcon({
   color: string;
   size: number;
 }) {
-  return <Ionicons name={name} size={size} color={color} />;
+  return <Ionicons name={name} color={color} size={size} />;
 }
 
 export default function AppLayout() {
@@ -31,11 +31,13 @@ export default function AppLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        sceneStyle: {
+          backgroundColor: "#08111F",
+        },
         tabBarActiveTintColor: "#FFFFFF",
-        tabBarInactiveTintColor: "#8FA1CC",
+        tabBarInactiveTintColor: "#90A0C7",
         tabBarShowLabel: true,
         tabBarHideOnKeyboard: true,
-        sceneStyle: { backgroundColor: "#08111F" },
         tabBarStyle: {
           position: "absolute",
           left: 14,
@@ -61,7 +63,7 @@ export default function AppLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color, size }) => (
-            <TabIcon name="home-outline" color={color} size={size} />
+            <TabBarIcon name="home-outline" color={color} size={size} />
           ),
         }}
       />
@@ -71,27 +73,31 @@ export default function AppLayout() {
         options={{
           title: "Path",
           tabBarIcon: ({ color, size }) => (
-            <TabIcon name="map-outline" color={color} size={size} />
+            <TabBarIcon name="map-outline" color={color} size={size} />
           ),
         }}
       />
 
       <Tabs.Screen
-        name="resume"
+        name="resume/index"
         options={{
           title: "Resume",
           tabBarIcon: ({ color, size }) => (
-            <TabIcon name="document-text-outline" color={color} size={size} />
+            <TabBarIcon
+              name="document-text-outline"
+              color={color}
+              size={size}
+            />
           ),
         }}
       />
 
       <Tabs.Screen
-        name="tracker"
+        name="tracker/index"
         options={{
           title: "Tracker",
           tabBarIcon: ({ color, size }) => (
-            <TabIcon name="briefcase-outline" color={color} size={size} />
+            <TabBarIcon name="briefcase-outline" color={color} size={size} />
           ),
         }}
       />
@@ -101,20 +107,241 @@ export default function AppLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color, size }) => (
-            <TabIcon name="person-outline" color={color} size={size} />
+            <TabBarIcon name="person-outline" color={color} size={size} />
           ),
         }}
       />
 
-      <Tabs.Screen name="resources" options={{ href: null }} />
-      <Tabs.Screen name="settings" options={{ href: null }} />
-      <Tabs.Screen name="subscriptions" options={{ href: null }} />
-      <Tabs.Screen name="applications" options={{ href: null }} />
-      <Tabs.Screen name="career-coach" options={{ href: null }} />
-      <Tabs.Screen name="growth" options={{ href: null }} />
-      <Tabs.Screen name="interview" options={{ href: null }} />
-      <Tabs.Screen name="jobs" options={{ href: null }} />
-      <Tabs.Screen name="edit-profile" options={{ href: null }} />
+      <Tabs.Screen
+        name="resources"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="settings"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="subscriptions"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="applications/index"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="applications/apply-dashboard"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="applications/package-review"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="growth/index"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="growth/first-90"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="growth/financial-wellness"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="interview/index"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="interview/live"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="interview/live-lobby"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="interview/live-session"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="interview/session"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="interview/feedback"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="interview/feedback-v7"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="interview/live-report"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="jobs/index"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="jobs/[id]"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="resume/ats-check"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="resume/ats-result"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="resume/design-studio"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="resume/export-center"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="resume/export-center-v7"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="resume/export-library"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="resume/job-ready"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="resume/rewrite"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="tracker/[id]"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="tracker/add-application"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="tracker/edit-application"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="career-coach"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="edit-profile"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="profile/linkedin"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

@@ -15,6 +15,10 @@ function toSafeUser(record = {}) {
     email: record.email,
     fullName: record.fullName,
     onboardingCompleted: Boolean(record.onboardingCompleted),
+    targetRole: record.targetRole || '',
+    location: record.location || '',
+    summary: record.summary || '',
+    authProvider: record.authProvider || 'local',
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -37,74 +41,7 @@ function signToken(user) {
 }
 
 function getStore() {
-  try {
-    return require('../data/store');
-  } catch {
-    return {};
-  }
-}
-
-function getUsersArrayFromStore(storeModule) {
-  if (!storeModule) return [];
-
-  if (Array.isArray(storeModule.users)) return storeModule.users;
-  if (storeModule.state && Array.isArray(storeModule.state.users)) {
-    return storeModule.state.users;
-  }
-  if (
-    typeof storeModule.getState === 'function' &&
-    Array.isArray(storeModule.getState()?.users)
-  ) {
-    return storeModule.getState().users;
-  }
-
-  return [];
-}
-
-function ensureUsersArray(storeModule) {
-  if (!storeModule) return [];
-
-  if (Array.isArray(storeModule.users)) return storeModule.users;
-
-  if (storeModule.state) {
-    if (!Array.isArray(storeModule.state.users)) storeModule.state.users = [];
-    return storeModule.state.users;
-  }
-
-  if (typeof storeModule.getState === 'function') {
-    const state = storeModule.getState();
-    if (!Array.isArray(state.users)) state.users = [];
-    return state.users;
-  }
-
-  storeModule.users = [];
-  return storeModule.users;
-}
-
-function persistStore(storeModule) {
-  try {
-    if (typeof storeModule.saveState === 'function') {
-      storeModule.saveState();
-    }
-  } catch {}
-}
-
-function makeUser({
-  email,
-  password,
-  fullName,
-}) {
-  const now = new Date().toISOString();
-
-  return {
-    id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-    email,
-    password,
-    fullName: normalizeText(fullName, email.split('@')[0] || 'User'),
-    onboardingCompleted: false,
-    createdAt: now,
-    updatedAt: now,
-  };
+  return require('../data/store');
 }
 
 // POST /api/auth/register
@@ -126,36 +63,31 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    const storeModule = getStore();
-    const users = ensureUsersArray(storeModule);
+    const store = getStore();
 
-    const existing = users.find(
-      (user) => String(user.email || '').toLowerCase() === email
-    );
-
-    if (existing) {
+    const existingUser = await store.findUserByEmail(email);
+    if (existingUser) {
       return res.status(409).json({
         message: 'An account with this email already exists.',
       });
     }
 
-    const newUser = makeUser({
+    const createdUser = await store.createUser({
       email,
       password,
-      fullName,
+      fullName: fullName || email.split('@')[0] || 'User',
+      authProvider: 'local',
     });
 
-    users.unshift(newUser);
-    persistStore(storeModule);
-
-    const token = signToken(newUser);
+    const token = signToken(createdUser);
 
     return res.status(201).json({
       ok: true,
       accessToken: token,
-      user: toSafeUser(newUser),
+      user: toSafeUser(createdUser),
     });
   } catch (error) {
+    console.error('[AUTH] register failed:', error);
     return res.status(500).json({
       message: error?.message || 'Could not register user.',
     });
@@ -174,14 +106,8 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    const storeModule = getStore();
-    const users = getUsersArrayFromStore(storeModule);
-
-    const user = users.find(
-      (item) =>
-        String(item.email || '').toLowerCase() === email &&
-        String(item.password || '') === password
-    );
+    const store = getStore();
+    const user = await store.findUserByEmail(email);
 
     if (!user) {
       return res.status(401).json({
@@ -189,17 +115,27 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    user.updatedAt = new Date().toISOString();
-    persistStore(storeModule);
+    const passwordOk = await store.verifyPassword(user, password);
 
-    const token = signToken(user);
+    if (!passwordOk) {
+      return res.status(401).json({
+        message: 'Invalid email or password.',
+      });
+    }
+
+    const refreshedUser = await store.updateUser(user.id, {
+      updatedAt: new Date().toISOString(),
+    });
+
+    const token = signToken(refreshedUser || user);
 
     return res.status(200).json({
       ok: true,
       accessToken: token,
-      user: toSafeUser(user),
+      user: toSafeUser(refreshedUser || user),
     });
   } catch (error) {
+    console.error('[AUTH] login failed:', error);
     return res.status(500).json({
       message: error?.message || 'Could not sign in.',
     });
@@ -239,9 +175,9 @@ router.post('/me', async (req, res) => {
       });
     }
 
-    const storeModule = getStore();
-    const users = getUsersArrayFromStore(storeModule);
-    const user = users.find((item) => String(item.id) === userId);
+    const store = getStore();
+    const preloadResult = await store.preloadUser(userId);
+    const user = preloadResult?.user || null;
 
     if (!user) {
       return res.status(404).json({
@@ -254,6 +190,7 @@ router.post('/me', async (req, res) => {
       user: toSafeUser(user),
     });
   } catch (error) {
+    console.error('[AUTH] me failed:', error);
     return res.status(500).json({
       message: error?.message || 'Could not load current user.',
     });
@@ -264,7 +201,7 @@ router.post('/me', async (req, res) => {
 router.post('/logout', async (_req, res) => {
   return res.status(200).json({
     ok: true,
-    message: 'Signed out successfully.',
+    message: 'Signed out.',
   });
 });
 

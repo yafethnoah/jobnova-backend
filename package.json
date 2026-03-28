@@ -1,6 +1,6 @@
 {
   "name": "jobnova-backend",
-  "version": "14.0.0",
+  "version": "19.0.0",
   "private": true,
   "main": "server.js",
   "type": "commonjs",

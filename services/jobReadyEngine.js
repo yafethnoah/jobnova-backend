@@ -151,6 +151,68 @@ async function generateOptimizedCoverLetter({ fullName, roleTitle, company, jobD
   };
 }
 
+
+
+function computeAtsBenchmark(payload, rewrite, mergedJobDescription = '') {
+  const fallback = atsCheckFallback(payload, clean(payload.resumeText || ''), mergedJobDescription);
+  const overall = Number(fallback.score || 0);
+  const marketAverage = Math.max(55, Math.min(92, overall >= 82 ? overall - 7 : overall + 6));
+  const top10 = Math.max(marketAverage + 8, Math.min(98, overall + 12));
+  return {
+    overallScore: overall,
+    marketAverage,
+    top10Percent: top10,
+    semanticMatch: Math.max(52, Math.min(98, overall + 4)),
+    recruiterFit: Math.max(50, Math.min(98, Math.round((overall + fallback.experienceScore + fallback.titleAlignmentScore) / 1.6))),
+    matchedKeywords: toStringList(fallback.matchedKeywords),
+    missingKeywords: toStringList(fallback.missingKeywords),
+    formattingRisks: toStringList(fallback.formattingRisks),
+    strengths: toStringList(fallback.strengths),
+    recommendations: toStringList(fallback.recommendations)
+  };
+}
+
+function buildCareerNarrative(payload, rewrite, company) {
+  const role = clean(payload.targetRole || 'Target Role');
+  const skills = toStringList(rewrite.optimizedSkills).slice(0, 4);
+  const alignment = toStringList(rewrite.roleAlignmentNotes).slice(0, 2);
+  return {
+    positioningStatement: `${clean(payload.fullName || 'The candidate')} is positioning for ${role} by emphasizing ${safeJoin(skills, ', ', 'transferable business strengths')} in a recruiter-friendly Canadian format.`,
+    topThemes: [
+      `${role}-aligned value story`,
+      skills[0] ? `${skills[0]} with visible proof points` : 'Visible strengths mapped to job needs',
+      alignment[0] || 'Cleaner business outcomes and clearer role alignment'
+    ].filter(Boolean),
+    interviewBridge: alignment[0]
+      ? `In interviews, open with a short context sentence, then use ${alignment[0].replace(/^Aligned to posting priority:\s*/i, '').toLowerCase()} as the bridge into your example.`
+      : `In interviews, connect your strongest example directly to the main priorities of the ${role} role.`
+  };
+}
+
+function buildRecruiterLens(benchmark, rewrite) {
+  const skills = toStringList(rewrite.optimizedSkills);
+  return [
+    benchmark.overallScore >= 80
+      ? 'A recruiter would likely see this as a credible, shortlist-worthy draft with good ATS alignment.'
+      : 'A recruiter would see usable substance here, but the first-screen impact still depends on sharper role alignment.',
+    skills.length
+      ? `The strongest first-scan signal is the visible emphasis on ${safeJoin(skills.slice(0, 3), ', ')}.`
+      : 'The strongest first-scan signal is the cleaner structure and more direct role targeting.',
+    benchmark.missingKeywords[0]
+      ? `The main perceived gap is missing evidence for ${benchmark.missingKeywords[0].toLowerCase()}.`
+      : 'The main next step is turning strong alignment into sharper measurable outcomes.'
+  ];
+}
+
+function buildQuickWins(benchmark, rewrite) {
+  const wins = [];
+  if (benchmark.missingKeywords[0]) wins.push(`Add truthful evidence for ${benchmark.missingKeywords[0]} in one experience bullet or summary line.`);
+  wins.push('Move your strongest quantified or outcome-based bullet into the first half of the experience section.');
+  wins.push('Prepare one interview story that proves the same strengths highlighted in the tailored resume.');
+  if (toStringList(rewrite.improvedBullets).length < 4) wins.push('Expand the experience section with 2 to 3 concrete bullets using action + result language.');
+  return wins.slice(0, 4);
+}
+
 function classifyPostingTrust(parsedPosting, directJobDescription = '') {
   const warning = clean(parsedPosting?.warning || '');
   const confidence = clean(parsedPosting?.confidence || '').toLowerCase();
@@ -214,6 +276,11 @@ async function generateJobReady(payload) {
     generateRecruiterEmail({ fullName: payload.fullName, roleTitle, company, jobDescription: mergedJobDescription, amendedResume: rewrite.rewrittenResume })
   ]);
 
+  const atsBenchmark = computeAtsBenchmark(payload, rewrite, mergedJobDescription);
+  const careerNarrative = buildCareerNarrative(payload, rewrite, company);
+  const recruiterLens = buildRecruiterLens(atsBenchmark, rewrite);
+  const quickWins = buildQuickWins(atsBenchmark, rewrite);
+
   let exportArtifacts = [];
   let exportWarning = '';
   try {
@@ -260,6 +327,10 @@ async function generateJobReady(payload) {
     thankYouEmail: `Thank you for your time and consideration regarding the ${roleTitle} opportunity. I appreciated the chance to share my background and remain very interested in contributing to ${company}.`,
     linkedinHeadline: `${roleTitle} | Employer-ready resume | Canadian market alignment`,
     linkedinAbout: `Professionally grounded candidate targeting ${roleTitle} roles in Canada with a practical focus on communication, operational support, and stakeholder coordination.`,
+    atsBenchmark,
+    careerNarrative,
+    recruiterLens,
+    quickWins,
     recommendedResumeTemplateId: selectedResumeTemplateId,
     recommendedCoverLetterTemplateId: selectedCoverLetterTemplateId,
     selectedResumeTemplateId,

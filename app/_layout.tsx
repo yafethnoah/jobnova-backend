@@ -4,7 +4,6 @@ import { Slot } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
 import { AuthProvider, useAuthContext } from "@/src/features/auth/AuthProvider";
 
 const queryClient = new QueryClient({

@@ -6,3 +6,5 @@ npm-debug.log*
 uploads/
 node_modules/
 .env
+jobnova-backend.zip
+*.zip

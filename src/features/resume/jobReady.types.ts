@@ -60,6 +60,25 @@ export type JobReadyPackage = {
   thankYouEmail?: string;
   linkedinHeadline?: unknown;
   linkedinAbout?: unknown;
+  atsBenchmark?: {
+    overallScore: number;
+    marketAverage: number;
+    top10Percent: number;
+    semanticMatch: number;
+    recruiterFit: number;
+    matchedKeywords: string[];
+    missingKeywords: string[];
+    formattingRisks: string[];
+    strengths: string[];
+    recommendations: string[];
+  };
+  careerNarrative?: {
+    positioningStatement: string;
+    topThemes: string[];
+    interviewBridge: string;
+  };
+  recruiterLens?: string[];
+  quickWins?: string[];
   exportArtifacts: ExportArtifact[];
   selectedResumeTemplateId?: string;
   selectedCoverLetterTemplateId?: string;

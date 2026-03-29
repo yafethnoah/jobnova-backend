@@ -1,27 +1,56 @@
-import { Slot } from 'expo-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-
-import { AuthProvider } from '@/src/features/auth/AuthProvider';
+import { ActivityIndicator, View } from "react-native";
+import { StatusBar } from "expo-status-bar";
+import { Slot } from "expo-router";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AuthProvider, useAuthContext } from "@/src/features/auth/AuthProvider";
+import { ToastProvider } from "@/src/features/feedback/ToastProvider";
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5,
       retry: 1,
+      staleTime: 30000,
       refetchOnWindowFocus: false,
-    },
-    mutations: {
-      retry: 0,
     },
   },
 });
 
+function RootNavigator() {
+  const { status } = useAuthContext();
+
+  if (status === "loading") {
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "#08111F",
+        }}
+      >
+        <ActivityIndicator size="large" color="#6F86FF" />
+      </View>
+    );
+  }
+
+  return <Slot />;
+}
+
 export default function RootLayout() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <Slot />
-      </AuthProvider>
-    </QueryClientProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <ToastProvider>
+              <StatusBar style="light" />
+              <RootNavigator />
+            </ToastProvider>
+          </AuthProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

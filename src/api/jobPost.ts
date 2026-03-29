@@ -40,7 +40,7 @@ export const jobPostApi = {
     const data = await optionalAuthApiRequest<ExtractJobPostResponse>('/resume/extract-job-posting', token, {
       method: 'POST',
       body: { jobPostingUrl: normalized },
-      timeoutMs: 30000
+      timeoutMs: 60000
     });
 
     const warning = [normalizedResult.inputWarning, data.warning].filter(Boolean).join(' ');

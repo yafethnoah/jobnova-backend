@@ -1,4 +1,4 @@
-export type InterviewType = 'behavioral' | 'hr' | 'technical' | 'newcomer_confidence' | 'salary';
+export type InterviewType = 'behavioral' | 'situational' | 'technical' | 'competency' | 'panel' | 'hr' | 'newcomer_confidence' | 'salary';
 export type Difficulty = 'easy' | 'medium' | 'hard';
 export type CoachTone = 'supportive' | 'realistic' | 'strict';
 
@@ -39,6 +39,7 @@ export type LiveInterviewTurnResponse = {
     strength: string;
     improvements: string[];
     strongerSampleAnswer: string;
+    confidenceHint?: string;
   };
 };
 
@@ -58,4 +59,12 @@ export type VoiceInterviewReport = {
   };
   fillerWordCount: number;
   suggestedImprovedAnswer: string;
+  deliveryInsights?: {
+    pace: string;
+    answerLength: string;
+    starCoverage: string;
+    recruiterReadiness: string;
+    fillerPatterns: string[];
+  };
+  momentumPlan?: string[];
 };

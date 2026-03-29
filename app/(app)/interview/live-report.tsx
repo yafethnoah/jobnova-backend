@@ -64,6 +64,19 @@ function ReportView({ data }: { data: VoiceInterviewReport }) {
       <ListCard title="Improvement areas" items={data.improvementAreas} />
       <ListCard title="Personalized tips" items={data.personalizedTips} />
       <ListCard title="Next practice plan" items={data.nextPracticePlan} />
+      {data.deliveryInsights ? (
+        <AppCard>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: '#FFFFFF' }}>Delivery insights</Text>
+          <View style={{ marginTop: 10, gap: 8 }}>
+            <Text style={{ color: '#C8D3F5' }}>Pace: {data.deliveryInsights.pace}</Text>
+            <Text style={{ color: '#C8D3F5' }}>Answer length: {data.deliveryInsights.answerLength}</Text>
+            <Text style={{ color: '#C8D3F5' }}>STAR coverage: {data.deliveryInsights.starCoverage}</Text>
+            <Text style={{ color: '#C8D3F5' }}>Recruiter readiness: {data.deliveryInsights.recruiterReadiness}</Text>
+            {data.deliveryInsights.fillerPatterns?.length ? <Text style={{ color: '#C8D3F5' }}>Top filler patterns: {data.deliveryInsights.fillerPatterns.join(', ')}</Text> : null}
+          </View>
+        </AppCard>
+      ) : null}
+      {data.momentumPlan?.length ? <ListCard title="Momentum plan" items={data.momentumPlan} /> : null}
       <AppCard>
         <Text style={{ fontSize: 18, fontWeight: '700', color: '#FFFFFF' }}>Suggested stronger answer</Text>
         <Text style={{ marginTop: 10, lineHeight: 24, color: '#C8D3F5' }}>{data.suggestedImprovedAnswer}</Text>

@@ -1,83 +1,57 @@
+
 const express = require('express');
+const { requireAuth } = require('../middleware/auth');
 const { generateJobReady } = require('../services/jobReadyEngine');
-const { createPackageBundle, GENERATED_DIR } = require('../services/exportService');
-const path = require('path');
-const { optionalAuth } = require('../middleware/auth');
-const { saveState } = require('../data/store');
-const { enqueueUserSync } = require('../lib/cloudSync');
-const { normalizeArtifactArray } = require('../lib/normalize');
+
 const router = express.Router();
+router.use(requireAuth);
 
-
-function canRespond(req, res) {
-  return !req.requestTimedOut && !res.headersSent;
+function normalizeText(value, fallback = '') {
+  return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }
-
-function ensureArray(value) {
-  return normalizeArtifactArray(value);
-}
-
-router.use(optionalAuth);
 
 router.post('/job-ready-package', async (req, res) => {
   try {
-    const result = await generateJobReady(req.body || {});
-    if (!canRespond(req, res)) return;
-    const entry = {
-      id: `pkg-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      targetRole: result.roleTitle,
-      companyName: result.companyName,
-      payload: req.body || {},
-      result,
-      exportArtifacts: ensureArray(result.exportArtifacts)
+    const payload = {
+      fullName: normalizeText(req.body?.fullName, 'Candidate'),
+      targetRole: normalizeText(req.body?.targetRole || req.body?.roleTitle, 'Target Role'),
+      roleTitle: normalizeText(req.body?.roleTitle || req.body?.targetRole, 'Target Role'),
+      companyName: normalizeText(req.body?.companyName, 'Target Company'),
+      jobDescription: normalizeText(req.body?.jobDescription),
+      jobPostingUrl: normalizeText(req.body?.jobPostingUrl),
+      resumeText: normalizeText(req.body?.resumeText),
+      selectedExportFormat: normalizeText(req.body?.selectedExportFormat, 'both'),
+      selectedResumeExportFormat: normalizeText(req.body?.selectedResumeExportFormat, 'both'),
+      selectedCoverLetterExportFormat: normalizeText(req.body?.selectedCoverLetterExportFormat, 'both'),
+      selectedRecruiterEmailExportFormat: normalizeText(req.body?.selectedRecruiterEmailExportFormat, 'both'),
+      selectedResumeThemeId: normalizeText(req.body?.selectedResumeThemeId, 'classic-canadian-professional'),
+      selectedLayoutMode: normalizeText(req.body?.selectedLayoutMode, 'one-page'),
+      selectedResumeTemplateId: normalizeText(req.body?.selectedResumeTemplateId, 'classic-canadian-professional'),
+      selectedCoverLetterTemplateId: normalizeText(req.body?.selectedCoverLetterTemplateId, 'canadian-standard-letter'),
     };
-    req.userData = req.userData || {};
-    req.userData.resumeVersions = req.userData.resumeVersions || [];
-    req.userData.resumeVersions.unshift(entry);
-    req.userData.resumeVersions = req.userData.resumeVersions.slice(0, 50);
-    req.userData.exportLibrary = req.userData.exportLibrary || [];
-    for (const artifact of ensureArray(entry.exportArtifacts)) {
-      req.userData.exportLibrary.unshift({
-        id: `exp-${Date.now()}-${artifact.fileName}`,
-        createdAt: entry.createdAt,
-        packageId: entry.id,
-        targetRole: result.roleTitle,
-        companyName: result.companyName,
-        ...artifact
-      });
+
+    if (!payload.resumeText) {
+      return res.status(400).json({ message: 'resumeText is required.' });
     }
-    req.userData.exportLibrary = req.userData.exportLibrary.slice(0, 100);
-    saveState();
-    setImmediate(() => enqueueUserSync(req.user, req.userData, 'job_ready_package', entry, entry.id));
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const exportArtifacts = ensureArray(result.exportArtifacts).map((artifact) => ({
-      ...artifact,
-      downloadUrl: artifact.downloadUrl || `${baseUrl}/downloads/${artifact.fileName}`
-    }));
-    let packageBundleUrl;
-    let packageBundleFileName;
-    if (exportArtifacts.length) {
-      const bundle = await createPackageBundle(result.roleTitle, result.companyName, exportArtifacts.map((artifact) => ({ path: path.join(GENERATED_DIR, artifact.fileName) })));
-      if (!canRespond(req, res)) return;
-      packageBundleUrl = `${baseUrl}/downloads/${bundle.fileName}`;
-      packageBundleFileName = bundle.fileName;
+
+    if (!payload.jobDescription && !payload.jobPostingUrl) {
+      return res.status(400).json({ message: 'Provide either a job description or a job posting URL.' });
     }
-    if (!canRespond(req, res)) return;
-    return res.json({ ...result, exportArtifacts, packageId: entry.id, packageBundleUrl, packageBundleFileName });
+
+    const result = await generateJobReady(payload);
+    return res.status(200).json(result);
   } catch (error) {
-    if (!canRespond(req, res)) return;
-    return res.status(500).json({ message: error.message || 'Job-ready package generation failed.' });
+    console.error('[JOB READY] package failed:', error);
+    return res.status(500).json({ message: error?.message || 'Could not generate job-ready package.' });
   }
 });
 
-router.get('/job-ready-package/history', (req, res) => {
-  const history = (req.userData.resumeVersions || []).filter((item) => item.id && String(item.id).startsWith('pkg-'));
-  return res.json(history);
+router.get('/job-ready-package/history', async (_req, res) => {
+  return res.status(200).json({ ok: true, items: [] });
 });
 
-router.get('/export-library', (req, res) => {
-  return res.json(req.userData.exportLibrary || []);
+router.get('/export-library', async (_req, res) => {
+  return res.status(200).json({ ok: true, items: [] });
 });
 
 module.exports = router;

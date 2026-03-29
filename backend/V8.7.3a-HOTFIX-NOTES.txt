@@ -1,0 +1,3 @@
+Hotfix V8.7.3a
+- Removed leftover ads import from app/_layout.tsx.
+- Added src/lib/ads.ts as a harmless no-op stub so Metro cannot fail on stale imports.

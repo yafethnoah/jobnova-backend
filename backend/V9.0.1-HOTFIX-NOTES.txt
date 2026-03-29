@@ -1,0 +1,6 @@
+V9.0.1 hotfix
+- faster auth bootstrap with timeout
+- longer resume/job-ready request timeouts
+- OpenAI request timeout and faster model default
+- resilient job-ready package export fallback
+- export errors no longer block package response

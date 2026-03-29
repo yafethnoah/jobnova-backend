@@ -1,0 +1,17 @@
+JobNova V8.7.1 hardening pass
+
+Key fixes applied:
+- Fixed backend crash by adding optionalAuth middleware used by resume/career-path/interview/jobReady routes.
+- Hardened backend env config with ALLOW_LOCAL_FALLBACK and DISABLE_LOCAL_AUTH controls.
+- Prevented demo user seeding in production.
+- Fixed export route queue bug: awaited enqueue() and corrected job kind from export -> resume-export.
+- Repaired local queue helpers and worker utilities so export/interview worker code is no longer broken scaffolding.
+- Improved Expo runtime env loading to read app.config extra values via expo-constants on device builds.
+- Added request timeout handling in frontend API client with clearer network error messages.
+- Added .doc fallback parsing path.
+- Added job-post URL validation guard.
+
+Still recommended next:
+- Migrate live interview from expo-av to expo-audio / expo-video compatible stack.
+- Replace local JSON persistence with Postgres as the primary data store.
+- Move auth fully to Supabase/Auth provider for production.

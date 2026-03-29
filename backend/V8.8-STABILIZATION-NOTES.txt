@@ -1,0 +1,13 @@
+JobNova V8.8 stabilization pass
+
+Main fixes:
+- hides stray Resources route from bottom tabs
+- improves bottom tab labels to avoid overflow on iPhone
+- upgrades package/app versions to 8.8.0
+- adds safer Postgres fallback: if DATABASE_URL is wrong, backend falls back to local JSON instead of poisoning auth and sessions
+- updates /health to show persistence mode
+- rewrites env examples for clean iOS/live backend setup
+
+Important:
+- For local testing without a working Postgres password, leave backend DATABASE_URL blank
+- For Expo on iPhone, use your LAN IP or --tunnel, not localhost

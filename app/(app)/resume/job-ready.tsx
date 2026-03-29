@@ -67,6 +67,30 @@ function normalizeExportArtifacts(value: unknown): ExportArtifact[] {
     .filter(Boolean) as ExportArtifact[];
 }
 
+
+
+function renderListFromUnknown(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    return value
+      .split(/[\n•,]+/g)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.values(value as Record<string, unknown>)
+      .map((item) => String(item).trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+
 const exportFormats: { value: ExportFormat; label: string }[] = [
   { value: 'docx', label: 'Word only' },
   { value: 'pdf', label: 'PDF only' },
@@ -415,6 +439,44 @@ function PackageView({ data }: { data: JobReadyPackage }) {
         {data.parsedJobPosting?.extractionMethod ? <Text style={{ marginTop: 4, color: '#C8D3F5' }}>Extraction method: {data.parsedJobPosting.extractionMethod}</Text> : null}
         {data.parsedJobPosting?.warning ? <Text style={{ marginTop: 6, color: '#FBBF24' }}>{data.parsedJobPosting.warning}</Text> : null}
       </AppCard>
+
+      {data.atsBenchmark ? (
+        <AppCard>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: '#FFFFFF' }}>ATS benchmark</Text>
+          <View style={{ marginTop: 10, gap: 8 }}>
+            <Text style={{ color: '#C8D3F5' }}>Your score: {data.atsBenchmark.overallScore}/100</Text>
+            <Text style={{ color: '#C8D3F5' }}>Market average: {data.atsBenchmark.marketAverage}/100</Text>
+            <Text style={{ color: '#C8D3F5' }}>Top 10% benchmark: {data.atsBenchmark.top10Percent}/100</Text>
+            <Text style={{ color: '#C8D3F5' }}>Semantic match: {data.atsBenchmark.semanticMatch}/100</Text>
+            <Text style={{ color: '#C8D3F5' }}>Recruiter fit: {data.atsBenchmark.recruiterFit}/100</Text>
+            {data.atsBenchmark.matchedKeywords?.length ? <Text style={{ color: '#C8D3F5' }}>Matched keywords: {data.atsBenchmark.matchedKeywords.join(', ')}</Text> : null}
+            {data.atsBenchmark.missingKeywords?.length ? <Text style={{ color: '#FBBF24' }}>Missing keywords: {data.atsBenchmark.missingKeywords.join(', ')}</Text> : null}
+          </View>
+        </AppCard>
+      ) : null}
+
+      {data.careerNarrative ? (
+        <AppCard>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: '#FFFFFF' }}>Career narrative</Text>
+          <Text style={{ marginTop: 10, lineHeight: 24, color: '#C8D3F5' }}>{data.careerNarrative.positioningStatement}</Text>
+          {data.careerNarrative.topThemes?.length ? <Text style={{ marginTop: 10, color: '#C8D3F5' }}>Top themes: {data.careerNarrative.topThemes.join(' • ')}</Text> : null}
+          <Text style={{ marginTop: 10, lineHeight: 24, color: '#C8D3F5' }}>Interview bridge: {data.careerNarrative.interviewBridge}</Text>
+        </AppCard>
+      ) : null}
+
+      {renderListFromUnknown(data.recruiterLens).length ? (
+        <AppCard>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: '#FFFFFF' }}>Recruiter eye view</Text>
+          <View style={{ marginTop: 10, gap: 8 }}>{renderListFromUnknown(data.recruiterLens).map((item, index) => <Text key={`recruiter-${index}`} style={{ color: '#C8D3F5', lineHeight: 24 }}>• {item}</Text>)}</View>
+        </AppCard>
+      ) : null}
+
+      {renderListFromUnknown(data.quickWins).length ? (
+        <AppCard>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: '#FFFFFF' }}>Priority quick wins</Text>
+          <View style={{ marginTop: 10, gap: 8 }}>{renderListFromUnknown(data.quickWins).map((item, index) => <Text key={`quick-${index}`} style={{ color: '#C8D3F5', lineHeight: 24 }}>• {item}</Text>)}</View>
+        </AppCard>
+      ) : null}
 
       <AppCard>
         <Text style={{ fontSize: 18, fontWeight: '700', color: '#FFFFFF' }}>Tailored resume</Text>

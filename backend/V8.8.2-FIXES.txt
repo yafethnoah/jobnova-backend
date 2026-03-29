@@ -1,0 +1,6 @@
+V8.8.2 fixes
+- normalized job-ready export format inputs to prevent non-array .join crashes
+- hardened export generation against object/string AI output shapes
+- improved recruiter email and cover letter prompts/fallbacks
+- hid subscription identifiers from public UI and kept plan selection inside app
+- kept iOS purchase flow inside app UI; real native IAP still requires a development/TestFlight build and a native library

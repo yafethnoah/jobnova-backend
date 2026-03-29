@@ -1,26 +1,110 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { View, Text } from "react-native";
-import { colors } from "@/src/constants/colors";
-import type { ToastItem, ToastType } from "@/src/features/feedback/toast.types";
 
-type ToastContextValue = { showToast: (message: string, type?: ToastType) => void; };
-const ToastContext = createContext<ToastContextValue | undefined>(undefined);
+type ToastType = "success" | "error" | "info";
+
+type ToastState = {
+  visible: boolean;
+  message: string;
+  type: ToastType;
+};
+
+type ToastContextValue = {
+  showToast: (message: string, type?: ToastType) => void;
+  hideToast: () => void;
+};
+
+const noopContext: ToastContextValue = {
+  showToast: () => undefined,
+  hideToast: () => undefined,
+};
+
+const ToastContext = createContext<ToastContextValue>(noopContext);
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toast, setToast] = useState<ToastItem | null>(null);
-  function showToast(message: string, type: ToastType = "info") {
-    const id = String(Date.now());
-    setToast({ id, message, type });
-    setTimeout(() => { setToast((current) => (current?.id === id ? null : current)); }, 2500);
-  }
-  const bgColor = toast?.type === "success" ? colors.success : toast?.type === "error" ? colors.danger : colors.text;
-  const value = useMemo(() => ({ showToast }), []);
+  const [toast, setToast] = useState<ToastState>({
+    visible: false,
+    message: "",
+    type: "info",
+  });
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const hideToast = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    setToast((prev) => ({ ...prev, visible: false }));
+  }, []);
+
+  const showToast = useCallback((message: string, type: ToastType = "info") => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    setToast({
+      visible: true,
+      message,
+      type,
+    });
+
+    timerRef.current = setTimeout(() => {
+      setToast((prev) => ({ ...prev, visible: false }));
+      timerRef.current = null;
+    }, 2500);
+  }, []);
+
+  const value = useMemo(
+    () => ({ showToast, hideToast }),
+    [showToast, hideToast]
+  );
+
+  const backgroundColor =
+    toast.type === "success"
+      ? "#16A34A"
+      : toast.type === "error"
+        ? "#DC2626"
+        : "#334155";
+
   return (
     <ToastContext.Provider value={value}>
       {children}
-      {toast ? <View style={{ position: "absolute", left: 16, right: 16, bottom: 24, backgroundColor: bgColor, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14 }}><Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>{toast.message}</Text></View> : null}
+
+      {toast.visible ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: 16,
+            right: 16,
+            bottom: 100,
+            backgroundColor,
+            paddingHorizontal: 16,
+            paddingVertical: 14,
+            borderRadius: 14,
+            shadowColor: "#000",
+            shadowOpacity: 0.15,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: 6,
+          }}
+        >
+          <Text
+            style={{
+              color: "#FFFFFF",
+              fontSize: 14,
+              fontWeight: "600",
+            }}
+          >
+            {toast.message}
+          </Text>
+        </View>
+      ) : null}
     </ToastContext.Provider>
   );
 }
 
-export function useToast() { const context = useContext(ToastContext); if (!context) throw new Error("useToast must be used inside ToastProvider"); return context; }
+export function useToast() {
+  return useContext(ToastContext);
+}

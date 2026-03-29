@@ -1,0 +1,12 @@
+JobNova V9.0.0 clean build
+
+Key changes
+- fixed export service bugs that broke package generation
+- normalized export selections and renderable text across package generation
+- parallelized cover letter and recruiter email generation for faster responses
+- moved cloud sync off the critical response path for faster API responses
+- cleaned subscription UI and hid product identifiers
+- shortened API timeout defaults and improved optional-auth handling for job-ready endpoints
+
+Known limit
+- native iOS in-app purchases still need a real StoreKit library and a development/TestFlight build

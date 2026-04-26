@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: jobnova-backend
+    env: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm run start:prod
+    plan: starter
+    healthCheckPath: /health
